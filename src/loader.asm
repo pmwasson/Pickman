@@ -666,8 +666,8 @@ fileTypeMap:    String "Map"
 fileTypeExe:    String "Executable"
 
 ; File names
-fileNameFont1:  StringLen "/DHGR/DATA/TILESET7X8.1"
-fileNameFont2:  StringLen "/DHGR/DATA/TILESET7X8.2"
+fileNameFont1:  StringLen "/DHGR/DATA/TILESET7X8.0"
+fileNameFont2:  StringLen "/DHGR/DATA/TILESET7X8.1"
 fileNameBG:     StringLen "/DHGR/DATA/TILESET14X16.0"
 fileNameMap:    StringLen "/DHGR/DATA/MAP.0"
 fileNameEngine: StringLen "/DHGR/DATA/ENGINE"
@@ -681,7 +681,7 @@ fileDescription:    ; type, name, address, size, dest, interleave
     .word   fileTypeFont,   fileNameFont1,  READBUFFER,     FONT1LENGTH,    FONT1END,   FONT1START,     INSTALL_AUX_I2, FONT1I2END      ; 0
     .word   fileTypeFont,   fileNameFont2,  READBUFFER,     FONT2LENGTH,    FONT2END,   FONT2START,     INSTALL_AUX_I2, FONT2I2END      ; 16
     .word   fileTypeBG,     fileNameBG,     READBUFFER,     BGLENGTH,       BGEND,      BGSTART,        INSTALL_AUX_I4, BGI4END         ; 32
-    .word   fileTypeBG,     fileNameBG,     READBUFFER,     BGLENGTH,       BGEND,      BGSTART,        INSTALL_AUX_I4, BGI4END         ; 32
+    .word   fileTypeBG,     fileNameBG,     READBUFFER,     BGLENGTH,       BGEND,      BGSTART,        INSTALL_AUX_I4, BGI4END         ; 48
     .word   fileTypeMap,    fileNameMap,    READBUFFER,     MAPLENGTH,      MAPEND,     MAPSTART,       INSTALL_AUX,    0               ; 64
     .word   fileTypeExe,    fileNameEngine, ENGINESTART,    ENGINELENGTH,   0,          ENGINESTART,    INSTALL_MAIN,   0               ; 80
     .word   fileTypeExe,    fileNameGame,   GAMESTART,      GAMELENGTH,     0,          GAMESTART,      INSTALL_MAIN,   0               ; 96

@@ -53,6 +53,18 @@ SEED0                   = $ab
 SEED1                   = $cd
 SEED2                   = $ef
 
+; BCD numbers
+BCD_RESERVED            = 8*0
+BCD_MONEY               = 8*1
+BCD_ROCK_VALUE          = 8*2
+BCD_GOLD_VALUE          = 8*3
+BCD_DIAMOND_VALUE       = 8*4
+
+BCD_MONEY_INIT          = $00
+BCD_ROCK_VALUE_INIT     = $01
+BCD_GOLD_VALUE_INIT     = $05
+BCD_DIAMOND_VALUE_INIT  = $20
+
 ;------------------------------------------------
 
 .segment "CODE"
@@ -88,7 +100,8 @@ SEED2                   = $ef
 
     jsr         dhgrInit    ; Turn on dhgr
 
-
+    lda         #2
+    sta         updateInfo  ; Update info (both pages)
 
 gameLoop:
 
@@ -390,11 +403,6 @@ flipToPage1:
 ;   Pass string index in X
 ;-----------------------------------------------------------------------------
 .proc drawString
-    lda         textStrings,x
-    sta         stringPtr0
-    lda         textStrings+1,x
-    sta         stringPtr1
-
     ldy         #0
     sty         index
 loop:
@@ -423,7 +431,6 @@ index:      .byte   0
 
     ; map: 16 x 128
     ;  add veritcal offset * 16 (shift by 4)
-
 
     ; set up map
     lda         #<map
@@ -473,6 +480,7 @@ loopX2:
     ;---------------
     ; pickman
     ;---------------
+drawPlayer:
     ldx         playerTile
     lda         drawPage
     beq         :+
@@ -488,19 +496,33 @@ loopX2:
     ;---------------
     ; info
     ;---------------
+drawInfo:
+    lda         updateInfo
+    beq         drawDone
+    dec         updateInfo
     lda         #0
     sta         tileX
     sta         tileY
-    ldx         #0
+    lda         #<textString0
+    sta         stringPtr0
+    lda         #>textString0
+    sta         stringPtr1
     jsr         drawString
+
+    ldx         #BCD_MONEY
+    jsr         drawNum
 
     lda         #0
     sta         tileX
     lda         #1
     sta         tileY
-    ldx         #2
+    lda         #<textString1
+    sta         stringPtr0
+    lda         #>textString1
+    sta         stringPtr1
     jsr         drawString
 
+drawDone:
     rts
 
 
@@ -666,6 +688,7 @@ quit_params:
 
 .include "galois24o.asm"
 .include "inline_print.asm"
+.include "bcd.asm"
 
 ;-----------------------------------------------------------------------------
 ; Global Variables
@@ -680,12 +703,11 @@ playerX:            .byte   16
 playerY:            .byte   6
 playerTile:         .byte   TILE_PICKMAN_RIGHT1
 
-textStrings:        .word   textString0
-                    .word   textString1
+updateInfo:         .byte   0
 
 ;                           |--------||--------|
-textString0:        String "LEVEL:001  CASH:1234"
-textString1:        String "DEPTH:000 MOVES:0020"
+textString0:        String "MOVES:12345   $"
+textString1:        String "DEPTH:0"
 
 .align 256
 map:
