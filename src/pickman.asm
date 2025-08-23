@@ -54,11 +54,10 @@ SEED1                   = $cd
 SEED2                   = $ef
 
 ; BCD numbers
-BCD_RESERVED            = 8*0
-BCD_MONEY               = 8*1
-BCD_ROCK_VALUE          = 8*2
-BCD_GOLD_VALUE          = 8*3
-BCD_DIAMOND_VALUE       = 8*4
+BCD_MONEY               = 8*1-1
+BCD_ROCK_VALUE          = 8*2-1
+BCD_GOLD_VALUE          = 8*3-1
+BCD_DIAMOND_VALUE       = 8*4-1
 
 BCD_MONEY_INIT          = $00
 BCD_ROCK_VALUE_INIT     = $01
@@ -86,22 +85,21 @@ BCD_DIAMOND_VALUE_INIT  = $20
     lda         #SEED2
     sta         seed+2
 
-    jsr         genMap      ; generate map
+    jsr         genMap          ; generate map
+    jsr         clearMapCache   ; must be called after generating a map
 
-    lda         #$00        ; Clear both pages
+    lda         #$00            ; Clear both pages
     sta         drawPage
     jsr         clearScreen
-    ;jsr         drawScreen
 
-    lda         #$20        ; Clear both pages
+    lda         #$20            ; Clear both pages
     sta         drawPage
     jsr         clearScreen
-    ;jsr         drawScreen
 
-    jsr         dhgrInit    ; Turn on dhgr
+    jsr         dhgrInit        ; Turn on dhgr
 
     lda         #2
-    sta         updateInfo  ; Update info (both pages)
+    sta         updateInfo      ; Update info (both pages)
 
 gameLoop:
 
@@ -387,12 +385,15 @@ nextPage:   .byte   0
     sta         HISCR           ; display page 2
     lda         #0
     sta         drawPage        ; draw on page 1
+    sta         cacheOffset     ; 0
     rts
 
 flipToPage1:
     sta         LOWSCR          ; diaplay page 1
     lda         #$20
     sta         drawPage        ; draw on page 2
+    lda         #$80
+    sta         cacheOffset     ; 128
     rts
 
 .endproc
@@ -429,8 +430,15 @@ index:      .byte   0
 ;-----------------------------------------------------------------------------
 .proc drawScreen
 
+    ; set up cache
+    lda         cacheOffset
+    sta         cacheIndex
+
+
     ; map: 16 x 128
     ;  add veritcal offset * 16 (shift by 4)
+
+
 
     ; set up map
     lda         #<map
@@ -451,12 +459,17 @@ loopY1:
     lda         #WINDOW_LEFT
 loopX2:
     sta         tileX
+    ldx         cacheIndex
     ldy         index
     lda         (mapPtr0),y
+    cmp         mapCache,x
+    beq         skip
+    sta         mapCache,x
     sta         bgTile
     jsr         DHGR_DRAW_14X16
+skip:
     inc         index
-
+    inc         cacheIndex
     lda         tileX
     clc
     adc         #DELTA_H
@@ -493,6 +506,26 @@ drawPlayer:
     sta         tileY
     jsr         DHGR_DRAW_14X16
 
+    ; set cache
+    lda         playerY
+    sec
+    sbc         #WINDOW_TOP
+    asl
+    asl                         ; playerY increments by 2, so *4 for total of row*8
+    sta         cacheIndex
+    lda         playerX
+    sec
+    sbc         #WINDOW_LEFT
+    lsr
+    lsr                         ; playerX increments by 4, so /4
+    clc
+    adc         cacheIndex      ; + row
+    adc         cacheOffset     ; + page
+    tax
+    lda         bgTile
+    sta         mapCache,x
+
+
     ;---------------
     ; info
     ;---------------
@@ -526,7 +559,8 @@ drawDone:
     rts
 
 
-index:      .byte   0
+index:          .byte   0
+cacheIndex:     .byte   0
 
 .endproc
 
@@ -664,6 +698,22 @@ tileFreq:
 .endproc
 
 ;-----------------------------------------------------------------------------
+; Clear Map Cache
+;
+;   Note genMap will corrupt, so must be cleared
+;-----------------------------------------------------------------------------
+
+.proc clearMapCache
+    ldx         #0
+    lda         #0
+loop:
+    sta         mapCache,x
+    inx
+    bne         loop
+    rts
+.endproc
+
+;-----------------------------------------------------------------------------
 ; Quit
 ;
 ;   Exit to ProDos
@@ -694,6 +744,7 @@ quit_params:
 ; Global Variables
 
 clearColor:         .byte   0
+cacheOffset:        .byte   0
 
 mapOffsetX0:        .byte   0
 mapOffsetY0:        .byte   0
@@ -713,4 +764,6 @@ textString1:        String "DEPTH:0"
 map:
         .res    MAP_SIZE
 mapEnd:
-        .res    256         ; overflow
+
+mapCache:
+        .res    256         ; cache / map overflow

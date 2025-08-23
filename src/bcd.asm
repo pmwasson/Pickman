@@ -6,6 +6,7 @@
 ;   A few functions for manipulating large BCD numbers
 ;
 ; Numbers stored MSB to LSB
+; Numbered passed in using LSB.  So 7, 15, 23, etc
 ;
 
 BCD_NUM_SIZE    =   8      ; 16 digit numbers
@@ -23,12 +24,12 @@ temp            :=  A1
 ;-----------------------------------------------------------------------------
 .proc bcdSet
 
-    sta         num_array+BCD_NUM_SIZE-1,x      ; LSB = last byte of array
-    lda         #0
     ldy         #BCD_NUM_SIZE-1
+    sta         num_array,x         ; LSB = last byte of array
+    lda         #0
 loop:
     sta         num_array,x
-    inx
+    dex
     dey
     bne         loop
     rts
@@ -51,9 +52,9 @@ loop:
     sta         temp
 
 loop:
-    lda         num_array+BCD_NUM_SIZE-1,x
-    adc         num_array+BCD_NUM_SIZE-1,y
-    sta         num_array+BCD_NUM_SIZE-1,x
+    lda         num_array,x
+    adc         num_array,y
+    sta         num_array,x
     dex
     dey
     dec         temp
@@ -78,8 +79,8 @@ loop:
 loop:
     lda         num_array,x
     sta         num_array,y
-    inx
-    iny
+    dex
+    dey
     dec         temp
     bne         loop
     rts
@@ -90,7 +91,7 @@ loop:
 ;-----------------------------------------------------------------------------
 ; drawNum
 ;   Set tileX and tileY before calling
-;   Pass offset into BCD array in X
+;   Pass offset into BCD array in A
 ;-----------------------------------------------------------------------------
 ;   Display in 4 or 5 characters
 ;                       0 ..                   9,999          : ____  (2 bytes = 4 digits)
@@ -122,6 +123,8 @@ loop:
 
 .proc drawNum
 
+    and         #$F8            ; -7 (assuming aligned)
+    tax
     ; find msb
     stx         startIndex
     ldy         #BCD_NUM_SIZE
@@ -218,10 +221,7 @@ suffixTile:     .byte       $14,$14,$02,$0D,$0D,$0B,$00,$00
 
 .align 256
 num_array:
-    .byte       $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF         ; first entry not usable
-
     .byte       $00,$00,$00,$12,$34,$56,$78,$90
-
     .byte       $00,$00,$00,$00,$00,$00,$00,$01
     .byte       $00,$00,$00,$00,$00,$00,$00,$12
     .byte       $00,$00,$00,$00,$00,$00,$01,$23
