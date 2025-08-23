@@ -434,11 +434,8 @@ index:      .byte   0
     lda         cacheOffset
     sta         cacheIndex
 
-
     ; map: 16 x 128
     ;  add veritcal offset * 16 (shift by 4)
-
-
 
     ; set up map
     lda         #<map
@@ -463,7 +460,7 @@ loopX2:
     ldy         index
     lda         (mapPtr0),y
     cmp         mapCache,x
-    beq         skip
+    beq         skip                ; if same as last time, skip drawing
     sta         mapCache,x
     sta         bgTile
     jsr         DHGR_DRAW_14X16
@@ -505,26 +502,7 @@ drawPlayer:
     lda         playerY
     sta         tileY
     jsr         DHGR_DRAW_14X16
-
-    ; set cache
-    lda         playerY
-    sec
-    sbc         #WINDOW_TOP
-    asl
-    asl                         ; playerY increments by 2, so *4 for total of row*8
-    sta         cacheIndex
-    lda         playerX
-    sec
-    sbc         #WINDOW_LEFT
-    lsr
-    lsr                         ; playerX increments by 4, so /4
-    clc
-    adc         cacheIndex      ; + row
-    adc         cacheOffset     ; + page
-    tax
-    lda         bgTile
-    sta         mapCache,x
-
+    jsr         setMapCache
 
     ;---------------
     ; info
@@ -564,6 +542,37 @@ cacheIndex:     .byte   0
 
 .endproc
 
+;-----------------------------------------------------------------------------
+; Set map cache
+;   Update map cache with the last thing drawn
+;-----------------------------------------------------------------------------
+
+.proc setMapCache
+
+    ; set cache
+    lda         tileY
+    sec
+    sbc         #WINDOW_TOP
+    asl
+    asl                         ; tileY increments by 2, so *4 for total of row*8
+    sta         index
+    lda         tileX
+    sec
+    sbc         #WINDOW_LEFT
+    lsr
+    lsr                         ; tileX increments by 4, so /4
+    clc
+    adc         index           ; + row
+    adc         cacheOffset     ; + page
+    tax
+    lda         bgTile
+    sta         mapCache,x
+
+    rts
+
+index:          .byte   0
+
+.endproc
 ;-----------------------------------------------------------------------------
 ; genMap
 ;   Generate map
