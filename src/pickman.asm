@@ -434,18 +434,8 @@ index:      .byte   0
     lda         cacheOffset
     sta         cacheIndex
 
-    ; map: 16 x 128
-    ;  add veritcal offset * 16 (shift by 4)
-
-    ; set up map
-    lda         #<map
-    clc
-    adc         mapOffsetX0
-    adc         mapOffsetY0
-    sta         mapPtr0
-    lda         #>map
-    adc         mapOffsetY1     ; no clc needed as row should never overflow
-    sta         mapPtr1
+    ; set map pointer
+    jsr         setMapPtr
 
     lda         #WINDOW_TOP
 loopY1:
@@ -503,6 +493,24 @@ drawPlayer:
     sta         tileY
     jsr         DHGR_DRAW_14X16
     jsr         setMapCache
+
+    ; Dig test
+    jsr         setMapPtr
+    jsr         tile2Offset
+    lda         (mapPtr0),y
+    beq         :+
+    sta         digTile             ; remember overwritten tile (if not empty)
+:
+    lda         #TILE_EMPTY
+    sta         (mapPtr0),y
+
+    lda         #36
+    sta         tileX
+    lda         #22
+    sta         tileY
+    lda         digTile
+    sta         bgTile
+    jsr         DHGR_DRAW_14X16
 
     ;---------------
     ; info
@@ -573,6 +581,56 @@ cacheIndex:     .byte   0
 index:          .byte   0
 
 .endproc
+
+
+;-----------------------------------------------------------------------------
+; Set Map Ptr
+;   Set mapPtr based on mapOffset
+;-----------------------------------------------------------------------------
+
+.proc setMapPtr
+
+    ; set up map
+    lda         #<map
+    clc
+    adc         mapOffsetX0
+    adc         mapOffsetY0     ; increments by MAP_WIDTH
+    sta         mapPtr0
+    lda         #>map
+    adc         mapOffsetY1     ; no clc needed as row should never overflow
+    sta         mapPtr1
+    rts
+
+.endProc
+
+;-----------------------------------------------------------------------------
+; tile2Offset
+;   Get offet in Y to tileX, tileY
+;-----------------------------------------------------------------------------
+
+.proc tile2Offset
+
+    lda         tileY
+    sec
+    sbc         #WINDOW_TOP
+    asl
+    asl
+    asl                         ; tileY increments by 2, so *8 for total of row*16
+    sta         index
+    lda         tileX
+    sec
+    sbc         #WINDOW_LEFT
+    lsr
+    lsr                         ; tileX increments by 4, so /4
+    clc
+    adc         index           ; + row
+    tay
+    rts
+
+index:          .byte   0
+
+.endProc
+
 ;-----------------------------------------------------------------------------
 ; genMap
 ;   Generate map
@@ -762,6 +820,7 @@ mapOffsetY1:        .byte   0
 playerX:            .byte   16
 playerY:            .byte   6
 playerTile:         .byte   TILE_PICKMAN_RIGHT1
+digTile:            .byte   0
 
 updateInfo:         .byte   0
 
