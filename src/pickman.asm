@@ -206,14 +206,12 @@ playerInput:
     bit         TXTSET
     jmp         MONZ        ; enter monitor
 :
-
     ;
     ; Default
     ;
     jmp     gameLoop
 
  .endproc
-
 
 ;-----------------------------------------------------------------------------
 ; Player Movement
@@ -292,27 +290,79 @@ setX:
 .endproc
 
 .proc moveUp
+    ; check if move on screen
+    lda         playerY
+    sec
+    sbc         #DELTA_V
+    cmp         #THRESHOLD_TOP
+    bcs         setY
+
+    ; check if scroll
+    lda         mapOffsetY1
+    bne         scroll
+    lda         mapOffsetY0
+    beq         checkEdge       ; no scrolling
+
+scroll:
+    lda         mapOffsetY0
+    sec
+    sbc         #MAP_WIDTH
+    sta         mapOffsetY0
+    lda         mapOffsetY1
+    sbc         #0
+    sta         mapOffsetY1
+    rts                         ; okay - scroll
+
+checkEdge:
+    ; check if on edge
     lda         playerY
     sec
     sbc         #DELTA_V
     cmp         #WINDOW_TOP
-    bcs         :+
-    rts
-:
+    bcs         setY
+    rts                         ; failed
+setY:
     sta         playerY
-    rts
+    rts                         ; okay - move on screen
 .endproc
 
 .proc moveDown
+    ; check if move on screen
+    lda         playerY
+    clc
+    adc         #DELTA_V
+    cmp         #THRESHOLD_BOTTOM
+    bcc         setY
+
+    ; check if scroll
+    lda         mapOffsetY1
+    cmp         #MAP_BOTTOM1
+    bne         scroll
+    lda         mapOffsetY0
+    cmp         #MAP_BOTTOM0
+    beq         checkEdge       ; no scrolling
+
+scroll:
+    lda         mapOffsetY0
+    clc
+    adc         #MAP_WIDTH
+    sta         mapOffsetY0
+    lda         mapOffsetY1
+    adc         #0
+    sta         mapOffsetY1
+    rts                         ; okay - scroll
+
+checkEdge:
+    ; check if on edge
     lda         playerY
     clc
     adc         #DELTA_V
     cmp         #WINDOW_BOTTOM
-    bcc         :+
-    rts
-:
+    bcc         setY
+    rts                         ; failed
+setY:
     sta         playerY
-    rts
+    rts                         ; okay - move on screen
 .endproc
 
 
@@ -346,7 +396,6 @@ okay:
     rts
 .endproc
 
-; FIXME: no bounds check
 .proc scrollDown
     lda         mapOffsetY1
     cmp         #MAP_BOTTOM1
