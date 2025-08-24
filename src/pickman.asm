@@ -18,10 +18,15 @@
 DELTA_H                 = 4
 DELTA_V                 = 2
 
-WINDOW_LEFT             = DELTA_H           ; 1 space left
-WINDOW_RIGHT            = 40-DELTA_H        ; 1 space right
-WINDOW_TOP              = DELTA_V*2         ; 2 spaces top
-WINDOW_BOTTOM           = 24 - DELTA_V      ; 1 space bottom
+WINDOW_LEFT             = DELTA_H                       ; 1 space left
+THRESHOLD_LEFT          = WINDOW_LEFT + DELTA_H*2       ; 2 space buffer
+WINDOW_RIGHT            = 40-DELTA_H                    ; 1 space right
+THRESHOLD_RIGHT         = WINDOW_RIGHT - DELTA_H*2      ; 2 space buffer
+WINDOW_TOP              = DELTA_V*2                     ; 2 spaces top
+THRESHOLD_TOP           = WINDOW_TOP + DELTA_V*2        ; 2 space buffer
+WINDOW_BOTTOM           = 24 - DELTA_V                  ; 1 space bottom
+THRESHOLD_BOTTOM        = WINDOW_BOTTOM - DELTA_V*2     ; 2 space buffer
+
 MAP_WINDOW_WIDTH        = (WINDOW_RIGHT - WINDOW_LEFT) / DELTA_H
 MAP_WINDOW_HEIGHT       = (WINDOW_BOTTOM - WINDOW_TOP) / DELTA_V
 
@@ -33,7 +38,8 @@ MAP_LEFT                = 0
 MAP_RIGHT               = MAP_WIDTH - MAP_WINDOW_WIDTH
 MAP_TOP                 = 0
 MAP_BOTTOM              = MAP_WIDTH * (MAP_HEIGHT - MAP_WINDOW_HEIGHT)  ; 16 bit value
-
+MAP_BOTTOM0             = <MAP_BOTTOM
+MAP_BOTTOM1             = >MAP_BOTTOM
 TILE_EMPTY              = 0
 TILE_GRASS              = 1
 TILE_DIRT               = 2
@@ -112,6 +118,15 @@ gameLoop:
     ; update screen
     ;-----------------------
     jsr         drawScreen
+
+    ;-----------------------
+    ; check for falling
+    ;-----------------------
+    ;jsr         checkBelow
+    ;cmp         #TILE_EMPTY
+    ;bne         playerInput
+    ;jsr         moveDown
+    ;jmp         gameLoop
 
 playerInput:
     ;-------------------
@@ -202,38 +217,77 @@ playerInput:
 
 ;-----------------------------------------------------------------------------
 ; Player Movement
-;   playerX increments by deltaH
-;       range: WINDOW_LEFT <= playerX < WINDOW_RIGHT
-;   playerY increments by deltaV
-;       range: WINDOW_TOP  <= playerY < WINDOW_BOTTOM
-;   ignore movements out of range
+;   If before threshold
+;       move on screen
+;   else if can scroll
+;       scroll
+;   else if not on the edge
+;       move on screen
+;   else
+;       can't move
 ;-----------------------------------------------------------------------------
 
 .proc moveRight
+    ; set direction
     lda         #TILE_PICKMAN_RIGHT1
     sta         playerTile
+
+    ; check if move on screen
+    lda         playerX
+    clc
+    adc         #DELTA_H
+    cmp         #THRESHOLD_RIGHT
+    bcc         setX
+
+    ; check if scroll
+    lda         mapOffsetX0
+    cmp         #MAP_RIGHT
+    beq         checkEdge
+    inc         mapOffsetX0
+    rts                         ; okay - scroll
+
+checkEdge:
+    ; check if on edge
     lda         playerX
     clc
     adc         #DELTA_H
     cmp         #WINDOW_RIGHT
-    bcc         :+
-    rts
-:
+    bcc         setX
+    rts                         ; failed!
+
+setX:
     sta         playerX
-    rts
+    rts                         ; okay - move on screen
 .endproc
 
 .proc moveLeft
+    ; set direction
     lda         #TILE_PICKMAN_LEFT1
     sta         playerTile
+
+    ; check if move on screen
+    lda         playerX
+    sec
+    sbc         #DELTA_H
+    cmp         #THRESHOLD_LEFT
+    bcs         setX
+
+    ; check if scroll
+    lda         mapOffsetX0
+    beq         checkEdge
+    dec         mapOffsetX0
+    rts                         ; okay - scroll
+
+checkEdge:
+    ; check if on edge
     lda         playerX
     sec
     sbc         #DELTA_H
     cmp         #WINDOW_LEFT
-    bcs         :+
-    rts
-:
-    sta         playerX
+    bcs         setX
+    rts                         ; failed
+setX:
+    sta         playerX         ; okay - move on screen
     rts
 .endproc
 
@@ -274,24 +328,34 @@ playerInput:
 .proc scrollRight
     lda         mapOffsetX0
     cmp         #MAP_RIGHT
-    bcc         :+
-    rts
-:
+    bne         okay
+    rts                         ; z set
+okay:
     inc         mapOffsetX0
+    lda         #1              ; z clear
     rts
 .endproc
 
 .proc scrollLeft
     lda         mapOffsetX0
-    bne         :+
-    rts
-:
+    bne         okay
+    rts                         ; z set
+okay:
     dec         mapOffsetX0
+    lda         #1              ; z clear
     rts
 .endproc
 
 ; FIXME: no bounds check
 .proc scrollDown
+    lda         mapOffsetY1
+    cmp         #MAP_BOTTOM1
+    bne         okay
+    lda         mapOffsetY0
+    cmp         #MAP_BOTTOM0
+    bne         okay
+    rts                         ; bottom of map (Z set)
+okay:
     lda         mapOffsetY0
     clc
     adc         #MAP_WIDTH
@@ -299,11 +363,17 @@ playerInput:
     lda         mapOffsetY1
     adc         #0
     sta         mapOffsetY1
+    lda         #1              ; Z clear
     rts
 .endproc
 
-; FIXME: no bounds check
 .proc scrollUp
+    lda         mapOffsetY1
+    bne         okay
+    lda         mapOffsetY0
+    bne         okay
+    rts                         ; top of map
+okay:
     lda         mapOffsetY0
     sec
     sbc         #MAP_WIDTH
@@ -311,6 +381,7 @@ playerInput:
     lda         mapOffsetY1
     sbc         #0
     sta         mapOffsetY1
+    lda         #1              ; Z clear
     rts
 .endproc
 
@@ -494,23 +565,25 @@ drawPlayer:
     jsr         DHGR_DRAW_14X16
     jsr         setMapCache
 
-    ; Dig test
-    jsr         setMapPtr
-    jsr         tile2Offset
-    lda         (mapPtr0),y
-    beq         :+
-    sta         digTile             ; remember overwritten tile (if not empty)
-:
-    lda         #TILE_EMPTY
-    sta         (mapPtr0),y
-
-    lda         #36
-    sta         tileX
-    lda         #22
-    sta         tileY
-    lda         digTile
-    sta         bgTile
-    jsr         DHGR_DRAW_14X16
+;     ;-----------
+;     ; Dig test
+;     ;-----------
+;     jsr         setMapPtr
+;     jsr         tile2Offset
+;     lda         (mapPtr0),y
+;     beq         :+
+;     sta         digTile             ; remember overwritten tile (if not empty)
+; :
+;     lda         #TILE_EMPTY
+;     sta         (mapPtr0),y
+;
+;     lda         #36
+;     sta         tileX
+;     lda         #22
+;     sta         tileY
+;     lda         digTile
+;     sta         bgTile
+;     jsr         DHGR_DRAW_14X16
 
     ;---------------
     ; info
@@ -630,6 +703,29 @@ index:          .byte   0
 index:          .byte   0
 
 .endProc
+
+
+;-----------------------------------------------------------------------------
+; checkBelow
+;   return tile below player
+;-----------------------------------------------------------------------------
+
+.proc checkBelow
+
+    lda         playerX
+    sta         tileX
+    lda         playerY
+    clc
+    adc         #DELTA_V
+    sta         tileY
+    jsr         setMapPtr
+    jsr         tile2Offset
+    lda         (mapPtr0),y
+
+    rts
+
+.endproc
+
 
 ;-----------------------------------------------------------------------------
 ; genMap
