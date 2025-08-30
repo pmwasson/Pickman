@@ -125,7 +125,7 @@ loop:
 ;   display lower nibble of second byte if not half-byte (not 2 or 5)
 ;   display suffix if any (not 6 or 7)
 
-.proc drawNum
+.proc drawArrayNum
 
     and         #$F8            ; -7 (assuming aligned)
     tax
@@ -222,6 +222,41 @@ suffixTile:     .byte       $14,$14,$02,$0D,$0D,$0B,$00,$00
 
 .endproc
 
+
+;-----------------------------------------------------------------------------
+; Draw BCD Byte
+;   BCD number in bcdValue
+;-----------------------------------------------------------------------------
+.proc drawBCDByte
+    lda         bcdValue
+    and         #$f0
+    beq         nextDigit
+    lsr
+    lsr
+    lsr
+    lsr
+    ora         #TILE_FONT_0
+    sta         bgTile
+    jsr         DHGR_DRAW_7X8
+    inc         tileX
+    inc         tileX
+nextDigit:
+    lda         bcdValue
+    and         #$0f
+    ora         #TILE_FONT_0
+    sta         bgTile
+    jsr         DHGR_DRAW_7X8
+    inc         tileX
+    inc         tileX
+    rts
+.endproc
+
+;-----------------------------------------------------------------------------
+; Global
+;-----------------------------------------------------------------------------
+
+bcdValue:           .byte   0
+bcdIndex:           .byte   0
 
 .align 256
 num_array:

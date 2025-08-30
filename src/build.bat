@@ -48,11 +48,13 @@ java -jar C:\jar\AppleCommander.jar -as pickman_prodos.dsk data/game bin < pickm
 :: Throw on basic
 java -jar C:\jar\AppleCommander.jar -p pickman_prodos.dsk basic.system sys < ..\disk\BASIC.SYSTEM  || exit
 
-:: Add samples
+:: Add assets
 java -jar C:\jar\AppleCommander.jar -as pickman_prodos.dsk data/tileset14x16.0 bin < tileset14x16_0.apple2  || exit
 java -jar C:\jar\AppleCommander.jar -as pickman_prodos.dsk data/tileset7x8.0 bin < tileset7x8_0.apple2  || exit
 java -jar C:\jar\AppleCommander.jar -as pickman_prodos.dsk data/tileset7x8.1 bin < tileset7x8_1.apple2  || exit
 java -jar C:\jar\AppleCommander.jar -as pickman_prodos.dsk data/tileset7x8.2 bin < tileset7x8_2.apple2  || exit
+java -jar C:\jar\AppleCommander.jar -p  pickman_prodos.dsk data/title.0 bin < ..\images\title_main.dhr  || exit
+java -jar C:\jar\AppleCommander.jar -p  pickman_prodos.dsk data/title.1 bin < ..\images\title_aux.dhr   || exit
 
 :: Copy results out of the build directory
 copy pickman_prodos.dsk ..\disk  || exit

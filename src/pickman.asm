@@ -43,9 +43,13 @@ MAP_BOTTOM1             = >MAP_BOTTOM
 TILE_EMPTY              = 0
 TILE_GRASS              = 1
 TILE_DIRT               = 2
+TILE_STORE_ROCK         = 3
 TILE_ROCK               = 4
+TILE_STORE_GOLD         = 5
 TILE_GOLD               = 6
+TILE_STORE_DIAMOND      = 7
 TILE_DIAMOND            = 8
+TILE_STORE_DYNAMITE     = 10
 TILE_DYNAMITE           = 10
 TILE_PICKMAN_RIGHT1     = 11
 TILE_PICKMAN_RIGHT2     = 12
@@ -76,6 +80,11 @@ BCD_ROCK_VALUE_INIT     = $05
 BCD_GOLD_VALUE_INIT     = $20
 BCD_DIAMOND_VALUE_INIT  = $50
 
+STRING_BCD_BYTE         = 10
+STRING_BCD_NUMBER       = 11
+STRING_NEWLINE          = 13
+STRING_END              = 0
+
 ;------------------------------------------------
 
 .segment "CODE"
@@ -90,6 +99,14 @@ BCD_DIAMOND_VALUE_INIT  = $50
 .proc main
 
     ;----------------------------
+    ; Title
+    ;----------------------------
+    jsr         dhgrInit        ; Turn on dhgr
+    sta         CLR80COL
+    sta         HISCR
+    jsr         waitForKey
+
+    ;----------------------------
     ; Init
     ;----------------------------
     ; set seed (must not be 0)
@@ -99,13 +116,6 @@ BCD_DIAMOND_VALUE_INIT  = $50
     sta         seed+1
     lda         #SEED2
     sta         seed+2
-
-    lda         #PLAYER_INIT_X
-    sta         playerX
-    lda         #PLAYER_INIT_Y
-    sta         playerY
-    lda         #TILE_PICKMAN_RIGHT1
-    sta         playerTile
 
     ldx         #BCD_MONEY
     lda         #BCD_MONEY_INIT
@@ -123,11 +133,32 @@ BCD_DIAMOND_VALUE_INIT  = $50
     lda         #BCD_DIAMOND_VALUE_INIT
     jsr         bcdSet
 
-    lda         #2
-    sta         updateInfo      ; Update info (both pages)
+
+resetLevel:
+
+    ; Reset map
+    lda         #0
+    sta         mapOffsetX0
+    sta         mapOffsetY0
+    sta         mapOffsetY1
+
+    ; Set player location
+    lda         #PLAYER_INIT_X
+    sta         playerX
+    lda         #PLAYER_INIT_Y
+    sta         playerY
+    lda         #TILE_PICKMAN_RIGHT1
+    sta         playerTile
+
+
 
     jsr         genMap          ; generate map
-    jsr         clearMapCache   ; must be called after generating a map
+
+resetDisplay:
+    jsr         clearMapCache   ; must be called after generating a map or clearing screen
+
+    lda         #2
+    sta         updateInfo      ; Update info (both pages)
 
     lda         #$00            ; Clear both pages
     sta         drawPage
@@ -136,8 +167,6 @@ BCD_DIAMOND_VALUE_INIT  = $50
     lda         #$20            ; Clear both pages
     sta         drawPage
     jsr         clearScreen
-
-    jsr         dhgrInit        ; Turn on dhgr
 
 
 
@@ -149,6 +178,18 @@ gameLoop:
     inc         timer0
     bne         :+
     inc         timer1
+:
+
+    ;-----------------------
+    ; Enter Store
+    ;-----------------------
+    lda         destroyedTile
+    cmp         #TILE_DOOR
+    bne         :+
+    lda         #0
+    sta         destroyedTile
+    jsr         enterStore
+    jmp         resetDisplay
 :
 
     ;-----------------------
@@ -204,6 +245,11 @@ playerInput:
 
 ; Note: can't dig up!
 
+    cmp         #KEY_RETURN
+    bne         :+
+    jmp         resetLevel
+:
+
     ;
     ; Exit
     ;
@@ -231,6 +277,17 @@ playerInput:
     jmp     gameLoop
 
  .endproc
+
+;-----------------------------------------------------------------------------
+; Wait for key
+;-----------------------------------------------------------------------------
+
+.proc waitForKey
+    lda         KBD
+    bpl         waitForKey
+    sta         KBDSTRB
+    rts
+.endproc
 
 ;-----------------------------------------------------------------------------
 ; Player Movement
@@ -508,6 +565,7 @@ okay:
     sta         destroyedProp
     and         #TILE_PROPERTY_INVULNERABLE
     beq         :+
+
     rts                             ; Can't destroy
 :
 
@@ -626,25 +684,50 @@ flipToPage1:
 ;   Pass string index in X
 ;-----------------------------------------------------------------------------
 .proc drawString
+    lda         tileX
+    sta         leftX
     ldy         #0
     sty         index
 loop:
     lda         (stringPtr0),y
+    ; end of string
     bne         :+
     rts
+:
+    ; next-line
+    cmp         #13
+    bne         :+
+    lda         leftX
+    sta         tileX
+    inc         tileY
+    jmp         continue
+:
+    ; BCD number
+    cmp         #STRING_BCD_NUMBER
+    bne         :+
+    lda         bcdIndex
+    jsr         drawArrayNum
+    jmp         continue
+:
+    ; BCD byte
+    cmp         #STRING_BCD_BYTE
+    bne         :+
+    jsr         drawBCDByte
+    jmp         continue
 :
     and         #$3f
     sta         bgTile
     jsr         DHGR_DRAW_7X8
     inc         tileX
     inc         tileX
+continue:
     inc         index
     ldy         index
     bne         loop
     rts
 
 index:      .byte   0
-
+leftX:      .byte   0
 .endproc
 
 ;-----------------------------------------------------------------------------
@@ -734,7 +817,7 @@ drawInfo:
     jsr         drawString
 
     lda         #BCD_MONEY
-    jsr         drawNum
+    jsr         drawArrayNum
 
 ;    lda         #0
 ;    sta         tileX
@@ -1076,6 +1159,7 @@ quit_params:
 ;-----------------------------------------------------------------------------
 ; Utilies
 
+.include "store.asm"
 .include "galois24o.asm"
 .include "inline_print.asm"
 .include "bcd.asm"

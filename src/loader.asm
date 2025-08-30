@@ -39,14 +39,14 @@
 
 READBUFFER      :=  $4000    ; Share read buffer with page2
 
-MAPSTART        :=  $6000
-MAPLENGTH       =   64*64*2
-MAPEND          :=  READBUFFER + MAPLENGTH - 1
+IMAGESTART      :=  $4000
+IMAGELENGTH     =   $2000
+IMAGEEND        :=  READBUFFER + IMAGELENGTH - 1
 
-BGSTART         :=  $9000
-BGLENGTH        =   128*64
-BGEND           :=  READBUFFER + BGLENGTH - 1
-BGI4END         :=  BGSTART + BGLENGTH/2 - 1
+TILESTART       :=  $9000
+TILELENGTH      =   128*64
+TILEEND         :=  READBUFFER + TILELENGTH - 1
+TILEI4END       :=  TILESTART + TILELENGTH/2 - 1
 
 FONT1START      :=  $B000
 FONT1LENGTH     =   32*64
@@ -111,11 +111,15 @@ INSTALL_AUX_I4  = 4     ; Aux memory, interleave of 4
     jsr     loadAsset
     ldx     #assetFont2
     jsr     loadAsset
-    ldx     #assetBG
+    ldx     #assetTile
     jsr     loadAsset
     ldx     #assetEngine
     jsr     loadAsset
     ldx     #assetGame
+    jsr     loadAsset
+    ldx     #assetTitle1
+    jsr     loadAsset
+    ldx     #assetTitle0
     jsr     loadAsset
 
     lda     fileError
@@ -129,9 +133,9 @@ INSTALL_AUX_I4  = 4     ; Aux memory, interleave of 4
 
     ; Initialize engine
 
-    lda     #<BGSTART
+    lda     #<TILESTART
     sta     DHGR_BG_14X16
-    lda     #>BGSTART
+    lda     #>TILESTART
     sta     DHGR_BG_14X16+1
 
     lda     #<FONT1START
@@ -659,40 +663,42 @@ close_params:
 ; Assets
 
 ; Asset type
-fileTypeFont:   String "Font Tileset"
-fileTypeBG:     String "Background Tileset"
-fileTypeFG:     String "Foreground Tileset"
-fileTypeMap:    String "Map"
-fileTypeExe:    String "Executable"
+fileTypeFont:       String "DHGR Font Tileset"
+fileTypeTile:       String "DHGR Tileset"
+fileTypeExe:        String "Executable"
+fileTypeImgMain:    String "Image (main)"
+fileTypeImgAux:     String "Image (aux)"
 
 ; File names
 fileNameFont1:  StringLen "/DHGR/DATA/TILESET7X8.0"
 fileNameFont2:  StringLen "/DHGR/DATA/TILESET7X8.1"
-fileNameBG:     StringLen "/DHGR/DATA/TILESET14X16.0"
-fileNameMap:    StringLen "/DHGR/DATA/MAP.0"
+fileNameTile:   StringLen "/DHGR/DATA/TILESET14X16.0"
 fileNameEngine: StringLen "/DHGR/DATA/ENGINE"
 fileNameGame:   StringLen "/DHGR/DATA/GAME"
+fileNameTitle0: StringLen "/DHGR/DATA/TITLE.0"
+fileNameTitle1: StringLen "/DHGR/DATA/TITLE.1"
 
 ; Asset List
 fileDescription:    ; type, name, address, size, dest, interleave
-    ;       TYPE            NAME            BUFFER          LENGTH          END         STARTDEST       MODE            DESTEND (INT)   OFFSET
-    ;       0               2               4               6               8           10              12              14 
-    ;       --------------- --------------- -----------     -----------     ----------- -----------     --------------- --------------- -------
-    .word   fileTypeFont,   fileNameFont1,  READBUFFER,     FONT1LENGTH,    FONT1END,   FONT1START,     INSTALL_AUX_I2, FONT1I2END      ; 0
-    .word   fileTypeFont,   fileNameFont2,  READBUFFER,     FONT2LENGTH,    FONT2END,   FONT2START,     INSTALL_AUX_I2, FONT2I2END      ; 16
-    .word   fileTypeBG,     fileNameBG,     READBUFFER,     BGLENGTH,       BGEND,      BGSTART,        INSTALL_AUX_I4, BGI4END         ; 32
-    .word   fileTypeBG,     fileNameBG,     READBUFFER,     BGLENGTH,       BGEND,      BGSTART,        INSTALL_AUX_I4, BGI4END         ; 48
-    .word   fileTypeMap,    fileNameMap,    READBUFFER,     MAPLENGTH,      MAPEND,     MAPSTART,       INSTALL_AUX,    0               ; 64
-    .word   fileTypeExe,    fileNameEngine, ENGINESTART,    ENGINELENGTH,   0,          ENGINESTART,    INSTALL_MAIN,   0               ; 80
-    .word   fileTypeExe,    fileNameGame,   GAMESTART,      GAMELENGTH,     0,          GAMESTART,      INSTALL_MAIN,   0               ; 96
+    ;       TYPE             NAME            BUFFER       LENGTH          END         STARTDEST       MODE            DESTEND (INT)   OFFSET
+    ;       0                2               4            6               8           10              12              14
+    ;       ---------------  --------------- -----------  -----------     ----------- -----------     --------------- --------------- -------
+    .word   fileTypeFont,    fileNameFont1,  READBUFFER,  FONT1LENGTH,    FONT1END,   FONT1START,     INSTALL_AUX_I2, FONT1I2END      ; 0
+    .word   fileTypeFont,    fileNameFont2,  READBUFFER,  FONT2LENGTH,    FONT2END,   FONT2START,     INSTALL_AUX_I2, FONT2I2END      ; 16
+    .word   fileTypeTile,    fileNameTile,   READBUFFER,  TILELENGTH,     TILEEND,    TILESTART,      INSTALL_AUX_I4, TILEI4END       ; 32
+    .word   fileTypeExe,     fileNameEngine, ENGINESTART, ENGINELENGTH,   0,          ENGINESTART,    INSTALL_MAIN,   0               ; 48
+    .word   fileTypeExe,     fileNameGame,   GAMESTART,   GAMELENGTH,     0,          GAMESTART,      INSTALL_MAIN,   0               ; 64
+    .word   fileTypeImgMain, fileNameTitle0, READBUFFER,  IMAGELENGTH,    IMAGEEND,   IMAGESTART,     INSTALL_MAIN,   0               ; 80
+    .word   fileTypeImgAux,  fileNameTitle1, READBUFFER,  IMAGELENGTH,    IMAGEEND,   IMAGESTART,     INSTALL_AUX,    0               ; 96
+
 
 assetFont1  =   16*0
 assetFont2  =   16*1
-assetBG     =   16*2
-assetFG     =   16*3
-assetMap    =   16*4
-assetEngine =   16*5
-assetGame   =   16*6
+assetTile   =   16*2
+assetEngine =   16*3
+assetGame   =   16*4
+assetTitle0 =   16*5
+assetTitle1 =   16*6
 
 ;-----------------------------------------------------------------------------
 ; Utilies
