@@ -110,6 +110,14 @@ BCD_DIAMOND_VALUE_INIT  = $20
 gameLoop:
 
     ;-----------------------
+    ; Increment time
+    ;-----------------------
+    inc         timer0
+    bne         :+
+    inc         timer1
+:
+
+    ;-----------------------
     ; Page Flip
     ;-----------------------
     jsr         flipPage        ; display final drawing from last iteration of game loop
@@ -122,11 +130,15 @@ gameLoop:
     ;-----------------------
     ; check for falling
     ;-----------------------
-    ;jsr         checkBelow
-    ;cmp         #TILE_EMPTY
-    ;bne         playerInput
-    ;jsr         moveDown
-    ;jmp         gameLoop
+    lda         timer0
+    and         #%11            ; every 4th frame
+    bne         :+
+    jsr         checkBelow
+    cmp         #TILE_EMPTY
+    bne         playerInput
+    jsr         moveDown
+    jmp         gameLoop
+:
 
 playerInput:
     ;-------------------
@@ -150,40 +162,13 @@ playerInput:
     jsr         moveLeft
     jmp         gameLoop
 :
-    cmp         #KEY_UP
-    bne         :+
-    jsr         moveUp
-    jmp         gameLoop
-:
     cmp         #KEY_DOWN
     bne         :+
     jsr         moveDown
     jmp         gameLoop
 :
 
-    cmp         #KEY_D
-    bne         :+
-    jsr         scrollRight
-    jmp         gameLoop
-:
-
-    cmp         #KEY_A
-    bne         :+
-    jsr         scrollLeft
-    jmp         gameLoop
-:
-
-    cmp         #KEY_S
-    bne         :+
-    jsr         scrollDown
-    jmp         gameLoop
-:
-
-    cmp         #KEY_W
-    bne         :+
-    jsr         scrollUp
-    jmp         gameLoop
-:
+; Note: can't dig up!
 
     ;
     ; Exit
@@ -230,6 +215,22 @@ playerInput:
     lda         #TILE_PICKMAN_RIGHT1
     sta         playerTile
 
+    ; check if tile empty
+    jsr         checkRight
+    cmp         #TILE_EMPTY
+    beq         move
+
+    ; check if on edge (assume not on edge if able to scroll)
+    lda         playerX
+    clc
+    adc         #DELTA_H
+    cmp         #WINDOW_RIGHT
+    bcc         :+
+    rts                         ; Can't dig (or move)
+:
+    jmp         digTile
+
+move:
     ; check if move on screen
     lda         playerX
     clc
@@ -263,6 +264,22 @@ setX:
     lda         #TILE_PICKMAN_LEFT1
     sta         playerTile
 
+    ; check if tile empty
+    jsr         checkLeft
+    cmp         #TILE_EMPTY
+    beq         move
+
+    ; check if on edge (assume not on edge if able to scroll)
+    lda         playerX
+    sec
+    sbc         #DELTA_H
+    cmp         #WINDOW_LEFT
+    bcs         :+
+    rts                         ; Can't dig (or move)
+:
+    jmp         digTile
+
+move:
     ; check if move on screen
     lda         playerX
     sec
@@ -327,6 +344,14 @@ setY:
 .endproc
 
 .proc moveDown
+
+    ; check if tile empty
+    jsr         checkBelow
+    cmp         #TILE_EMPTY
+    beq         :+
+    jmp         digTile
+:
+
     ; check if move on screen
     lda         playerY
     clc
@@ -431,6 +456,30 @@ okay:
     sbc         #0
     sta         mapOffsetY1
     lda         #1              ; Z clear
+    rts
+.endproc
+
+
+;-----------------------------------------------------------------------------
+; Dig tile
+;-----------------------------------------------------------------------------
+
+.proc digTile
+    ldy         tileOffset
+    lda         (mapPtr0),y         ; previous value
+    sta         destroyedTile
+
+    tay
+    lda         tileProperties,y
+    and         #TILE_PROPERTY_INVULNERABLE
+    beq         :+
+    rts                             ; Can't destroy
+:
+
+    ldy         tileOffset
+    lda         #TILE_EMPTY
+    sta         bgTile
+    sta         (mapPtr0),y
     rts
 .endproc
 
@@ -614,26 +663,6 @@ drawPlayer:
     jsr         DHGR_DRAW_14X16
     jsr         setMapCache
 
-;     ;-----------
-;     ; Dig test
-;     ;-----------
-;     jsr         setMapPtr
-;     jsr         tile2Offset
-;     lda         (mapPtr0),y
-;     beq         :+
-;     sta         digTile             ; remember overwritten tile (if not empty)
-; :
-;     lda         #TILE_EMPTY
-;     sta         (mapPtr0),y
-;
-;     lda         #36
-;     sta         tileX
-;     lda         #22
-;     sta         tileY
-;     lda         digTile
-;     sta         bgTile
-;     jsr         DHGR_DRAW_14X16
-
     ;---------------
     ; info
     ;---------------
@@ -747,12 +776,56 @@ index:          .byte   0
     clc
     adc         index           ; + row
     tay
+    sty         tileOffset      ; cache result to avoid re-calling
     rts
 
 index:          .byte   0
 
 .endProc
 
+
+;-----------------------------------------------------------------------------
+; checkRight
+;   return tile to the right player
+;   assumes not at edge of map
+;-----------------------------------------------------------------------------
+
+.proc checkRight
+
+    lda         playerX
+    clc
+    adc         #DELTA_H
+    sta         tileX
+    lda         playerY
+    sta         tileY
+    jsr         setMapPtr
+    jsr         tile2Offset
+    lda         (mapPtr0),y
+    rts
+
+.endproc
+
+
+;-----------------------------------------------------------------------------
+; checkLeft
+;   return tile to the right player
+;   assumes not at edge of map/screen
+;-----------------------------------------------------------------------------
+
+.proc checkLeft
+
+    lda         playerX
+    sec
+    sbc         #DELTA_H
+    sta         tileX
+    lda         playerY
+    sta         tileY
+    jsr         setMapPtr
+    jsr         tile2Offset
+    lda         (mapPtr0),y
+    rts
+
+.endproc
 
 ;-----------------------------------------------------------------------------
 ; checkBelow
@@ -955,6 +1028,9 @@ quit_params:
 ;-----------------------------------------------------------------------------
 ; Global Variables
 
+timer0:             .byte   0
+timer1:             .byte   0
+
 clearColor:         .byte   0
 cacheOffset:        .byte   0
 
@@ -965,13 +1041,69 @@ mapOffsetY1:        .byte   0
 playerX:            .byte   16
 playerY:            .byte   6
 playerTile:         .byte   TILE_PICKMAN_RIGHT1
-digTile:            .byte   0
+destroyedTile:      .byte   0
+
+tileOffset:         .byte   0
 
 updateInfo:         .byte   0
 
 ;                           |--------||--------|
 textString0:        String "MOVES:12345   $"
 textString1:        String "DEPTH:0"
+
+
+; Lookup table of tile properties
+; 7:    Invulnerable (negative)
+; 6:    Scored      - increase score when destroyed
+; 5:    Grab        - pick up if activitly dug
+; 4:    Explosive   - explode when destroyed (grab has higher priority)
+; 3-0:  Index       - score index
+;
+; Index: 0  - none (dirt, etc)
+;        1  - rock
+;        2  - gold
+;        3  - diamond
+;        4  - inventory item
+;        5  - store door
+;       ...
+;        F  - invalid (error)
+
+TILE_PROPERTY_INVALID       =   $FF
+
+TILE_PROPERTY_INVULNERABLE  =   %10000000
+TILE_PROPERTY_SCORED        =   %01000000
+TILE_PROPERTY_GRAB          =   %00100000
+TILE_PROPERTY_EXPLOSIVE     =   %00010000
+TILE_PROPERTY_INDEX         =   %00001111
+
+TILE_INDEX_NONE             =   0
+TILE_INDEX_ROCK             =   1
+TILE_INDEX_GOLD             =   2
+TILE_INDEX_DIAMOND          =   3
+TILE_INDEX_ITEM             =   4
+TILE_INDEX_DOOR             =   5
+
+tileProperties:
+    .byte       TILE_INDEX_NONE                                                                             ; empty
+    .byte       TILE_INDEX_NONE                                                                             ; grass
+    .byte       TILE_INDEX_NONE                                                                             ; dirt
+    .byte       TILE_INDEX_ROCK    + TILE_PROPERTY_SCORED                                                   ; rock
+    .byte       TILE_INDEX_ROCK    + TILE_PROPERTY_SCORED                                                   ; rock
+    .byte       TILE_INDEX_GOLD    + TILE_PROPERTY_SCORED                                                   ; gold
+    .byte       TILE_INDEX_GOLD    + TILE_PROPERTY_SCORED                                                   ; gold
+    .byte       TILE_INDEX_DIAMOND + TILE_PROPERTY_SCORED                                                   ; diamond
+    .byte       TILE_INDEX_DIAMOND + TILE_PROPERTY_SCORED                                                   ; diamond
+    .byte       TILE_INDEX_ITEM    + TILE_PROPERTY_SCORED + TILE_PROPERTY_GRAB + TILE_PROPERTY_EXPLOSIVE    ; dynamite
+    .byte       TILE_INDEX_ITEM    + TILE_PROPERTY_SCORED + TILE_PROPERTY_GRAB + TILE_PROPERTY_EXPLOSIVE    ; dynamite
+    .byte       TILE_PROPERTY_INVALID                                                                       ; player
+    .byte       TILE_PROPERTY_INVALID                                                                       ; player
+    .byte       TILE_PROPERTY_INVALID                                                                       ; player
+    .byte       TILE_PROPERTY_INVALID                                                                       ; player
+    .byte       TILE_PROPERTY_INVALID                                                                       ; store
+    .byte       TILE_PROPERTY_INVALID                                                                       ; store
+    .byte       TILE_INDEX_NONE    + TILE_PROPERTY_INVULNERABLE                                             ; brick
+    .byte       TILE_INDEX_DOOR    + TILE_PROPERTY_INVULNERABLE                                             ; door
+
 
 .align 256
 map:
