@@ -46,6 +46,7 @@ TILE_DIRT               = 2
 TILE_ROCK               = 4
 TILE_GOLD               = 6
 TILE_DIAMOND            = 8
+TILE_DYNAMITE           = 10
 TILE_PICKMAN_RIGHT1     = 11
 TILE_PICKMAN_RIGHT2     = 12
 TILE_PICKMAN_LEFT1      = 13
@@ -59,16 +60,21 @@ SEED0                   = $ab
 SEED1                   = $cd
 SEED2                   = $ef
 
+PLAYER_INIT_X           = DELTA_H * 4
+PLAYER_INIT_Y           = DELTA_V * 3
+
 ; BCD numbers
 BCD_MONEY               = 8*1-1
 BCD_ROCK_VALUE          = 8*2-1
 BCD_GOLD_VALUE          = 8*3-1
 BCD_DIAMOND_VALUE       = 8*4-1
+BCD_ITEM_VALUE          = 8*5-1
+BCD_INVALID             = 8*16-1
 
 BCD_MONEY_INIT          = $00
-BCD_ROCK_VALUE_INIT     = $01
-BCD_GOLD_VALUE_INIT     = $05
-BCD_DIAMOND_VALUE_INIT  = $20
+BCD_ROCK_VALUE_INIT     = $05
+BCD_GOLD_VALUE_INIT     = $20
+BCD_DIAMOND_VALUE_INIT  = $50
 
 ;------------------------------------------------
 
@@ -83,6 +89,9 @@ BCD_DIAMOND_VALUE_INIT  = $20
 ;------------------------------------------------
 .proc main
 
+    ;----------------------------
+    ; Init
+    ;----------------------------
     ; set seed (must not be 0)
     lda         #SEED0
     sta         seed
@@ -90,6 +99,32 @@ BCD_DIAMOND_VALUE_INIT  = $20
     sta         seed+1
     lda         #SEED2
     sta         seed+2
+
+    lda         #PLAYER_INIT_X
+    sta         playerX
+    lda         #PLAYER_INIT_Y
+    sta         playerY
+    lda         #TILE_PICKMAN_RIGHT1
+    sta         playerTile
+
+    ldx         #BCD_MONEY
+    lda         #BCD_MONEY_INIT
+    jsr         bcdSet
+
+    ldx         #BCD_ROCK_VALUE
+    lda         #BCD_ROCK_VALUE_INIT
+    jsr         bcdSet
+
+    ldx         #BCD_GOLD_VALUE
+    lda         #BCD_GOLD_VALUE_INIT
+    jsr         bcdSet
+
+    ldx         #BCD_DIAMOND_VALUE
+    lda         #BCD_DIAMOND_VALUE_INIT
+    jsr         bcdSet
+
+    lda         #2
+    sta         updateInfo      ; Update info (both pages)
 
     jsr         genMap          ; generate map
     jsr         clearMapCache   ; must be called after generating a map
@@ -104,8 +139,7 @@ BCD_DIAMOND_VALUE_INIT  = $20
 
     jsr         dhgrInit        ; Turn on dhgr
 
-    lda         #2
-    sta         updateInfo      ; Update info (both pages)
+
 
 gameLoop:
 
@@ -471,16 +505,35 @@ okay:
 
     tay
     lda         tileProperties,y
+    sta         destroyedProp
     and         #TILE_PROPERTY_INVULNERABLE
     beq         :+
     rts                             ; Can't destroy
 :
 
+    lda         destroyedProp
+    and         #TILE_PROPERTY_SCORED
+    beq         :+
+    ; Add to score
+    lda         destroyedProp
+    and         #TILE_PROPERTY_INDEX
+    tax
+    ldy         tileIndexToBCD,x
+    ldx         #BCD_MONEY
+    jsr         bcdAdd
+    lda         #2
+    sta         updateInfo
+
+:
+    ; Set map to empty
     ldy         tileOffset
     lda         #TILE_EMPTY
     sta         bgTile
     sta         (mapPtr0),y
     rts
+
+destroyedProp:  .byte       0
+
 .endproc
 
 ;-----------------------------------------------------------------------------
@@ -673,24 +726,25 @@ drawInfo:
     lda         #0
     sta         tileX
     sta         tileY
+
     lda         #<textString0
     sta         stringPtr0
     lda         #>textString0
     sta         stringPtr1
     jsr         drawString
 
-    ldx         #BCD_MONEY
+    lda         #BCD_MONEY
     jsr         drawNum
 
-    lda         #0
-    sta         tileX
-    lda         #1
-    sta         tileY
-    lda         #<textString1
-    sta         stringPtr0
-    lda         #>textString1
-    sta         stringPtr1
-    jsr         drawString
+;    lda         #0
+;    sta         tileX
+;    lda         #1
+;    sta         tileY
+;    lda         #<textString1
+;    sta         stringPtr0
+;    lda         #>textString1
+;    sta         stringPtr1
+;    jsr         drawString
 
 drawDone:
     rts
@@ -966,9 +1020,10 @@ index:      .byte       0
 count:      .byte       0
 
 tileFreq:
-    .byte       TILE_DIAMOND, 10    ; 0.5%
-    .byte       TILE_GOLD, 40       ; 2%
-    .byte       TILE_ROCK, 160      ; 8%
+    .byte       TILE_DIAMOND,   10      ; 0.5%
+    .byte       TILE_GOLD,      40      ; 2%
+    .byte       TILE_ROCK,      160     ; 8%
+    .byte       TILE_DYNAMITE,  2
 
     ; fill remainder with dirt
     .byte       TILE_DIRT, 255
@@ -1038,9 +1093,9 @@ mapOffsetX0:        .byte   0
 mapOffsetY0:        .byte   0
 mapOffsetY1:        .byte   0
 
-playerX:            .byte   16
-playerY:            .byte   6
-playerTile:         .byte   TILE_PICKMAN_RIGHT1
+playerX:            .byte   0
+playerY:            .byte   0
+playerTile:         .byte   0
 destroyedTile:      .byte   0
 
 tileOffset:         .byte   0
@@ -1048,7 +1103,7 @@ tileOffset:         .byte   0
 updateInfo:         .byte   0
 
 ;                           |--------||--------|
-textString0:        String "MOVES:12345   $"
+textString0:        String "CASH $"
 textString1:        String "DEPTH:0"
 
 
@@ -1082,6 +1137,24 @@ TILE_INDEX_GOLD             =   2
 TILE_INDEX_DIAMOND          =   3
 TILE_INDEX_ITEM             =   4
 TILE_INDEX_DOOR             =   5
+
+tileIndexToBCD:
+    .byte       BCD_INVALID
+    .byte       BCD_ROCK_VALUE
+    .byte       BCD_GOLD_VALUE
+    .byte       BCD_DIAMOND_VALUE
+    .byte       BCD_ITEM_VALUE
+    .byte       BCD_INVALID
+    .byte       BCD_INVALID
+    .byte       BCD_INVALID
+    .byte       BCD_INVALID
+    .byte       BCD_INVALID
+    .byte       BCD_INVALID
+    .byte       BCD_INVALID
+    .byte       BCD_INVALID
+    .byte       BCD_INVALID
+    .byte       BCD_INVALID
+    .byte       BCD_INVALID
 
 tileProperties:
     .byte       TILE_INDEX_NONE                                                                             ; empty
