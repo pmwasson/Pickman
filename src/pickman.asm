@@ -59,6 +59,8 @@ TILE_SHOP_LEFT          = 15
 TILE_SHOP_RIGHT         = 16
 TILE_BRICK              = 17
 TILE_DOOR               = 18
+TILE_PICKMAN_SHOP_RIGHT = 23
+TILE_PICKMAN_SHOP_LEFT  = 24
 
 SEED0                   = $ab
 SEED1                   = $cd
@@ -66,7 +68,7 @@ SEED2                   = $ef
 
 PLAYER_INIT_X           = DELTA_H * 4
 PLAYER_INIT_Y           = DELTA_V * 3
-MAX_ENERGY_INIT         = 8
+MAX_ENERGY_INIT         = $10
 
 ; BCD numbers
 BCD_MONEY               = 8*1-1
@@ -827,19 +829,22 @@ drawInfo:
     lda         updateInfo
     beq         drawDone
     dec         updateInfo
+
+    ; display cash
+    lda         #BCD_MONEY
+    sta         bcdIndex
     lda         #0
     sta         tileX
     sta         tileY
-
     lda         #<textStringCash
     sta         stringPtr0
     lda         #>textStringCash
     sta         stringPtr1
     jsr         drawString
 
-    lda         #BCD_MONEY
-    jsr         drawArrayNum
-
+    ; display energy
+    lda         currentEnergy
+    sta         bcdValue
     lda         #0
     sta         tileX
     lda         #1
@@ -849,10 +854,8 @@ drawInfo:
     lda         #>textStringEnergy
     sta         stringPtr1
     jsr         drawString
-    lda         currentEnergy
-    sta         bcdValue
-    jsr         drawBCDByte
 
+    ; display warning
     lda         currentEnergy
     bne         drawDone
     lda         #0
@@ -1224,8 +1227,8 @@ tileOffset:         .byte   0
 updateInfo:         .byte   0
 
 
-textStringCash:     String      "CASH   $"
-textStringEnergy:   String      "ENERGY &"
+textStringCash:     .byte       "CASH   $",STRING_BCD_NUMBER,"   ",0
+textStringEnergy:   .byte       "ENERGY &",STRING_BCD_BYTE," ",0
                                 ;--------------------
 textStringReturn:   StringCont  "&& OUT OF ENERGY  &&"
                     String      "&& PRESS <RETURN> &&"

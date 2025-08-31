@@ -10,13 +10,17 @@ STORE_ACTION_ADD_VALUE      = 2
 STORE_ACTION_DOUBLE_VALUE   = 3
 STORE_ACTION_ADD_FREQ       = 4
 
+STORE_X_LEFT                = 4
+STORE_X_RIGHT               = 40-8
+STORE_X_INIT                = STORE_X_RIGHT
+STORE_Y_INIT                = 24-4
+
 .proc enterStore
 
     ; Store doesn't use page flip, so put everything on the low screen
     sta         LOWSCR          ; diaplay page 1
     lda         #0
     sta         drawPage        ; draw on page 1
-    jsr         clearScreen
 
     lda         #0
     sta         index
@@ -79,10 +83,66 @@ loopX:
     sta         bgTile
     jsr         DHGR_DRAW_14X16
 
+    lda         #STORE_X_INIT
+    sta         playerX
+    sta         tileX
+    lda         #STORE_Y_INIT
+    sta         playerY
+    sta         tileY
+    lda         #TILE_PICKMAN_SHOP_LEFT
+    sta         bgTile
+    jsr         DHGR_DRAW_14X16
+
+
+storeLoop:
     jsr         waitForKey
+
+    cmp         #KEY_LEFT
+    bne         :+
+
+    lda         playerX
+    cmp         #STORE_X_LEFT
+    beq         storeLoop
+    lda         #TILE_EMPTY
+    sta         bgTile
+    jsr         DHGR_DRAW_14X16
+    dec         playerX
+    dec         playerX
+    lda         playerX
+    sta         tileX
+    lda         #TILE_PICKMAN_SHOP_LEFT
+    sta         bgTile
+    jsr         DHGR_DRAW_14X16
+    jmp         storeLoop
+:
+
+    cmp         #KEY_RIGHT
+    bne         :+
+    lda         playerX
+    cmp         #STORE_X_RIGHT
+    beq         exit
+    lda         #TILE_EMPTY
+    sta         bgTile
+    jsr         DHGR_DRAW_14X16
+    inc         playerX
+    inc         playerX
+    lda         playerX
+    sta         tileX
+    lda         #TILE_PICKMAN_SHOP_RIGHT
+    sta         bgTile
+    jsr         DHGR_DRAW_14X16
+    jmp         storeLoop
+:
+    jmp         storeLoop
+
+exit:
     rts
 
 index:          .byte   0
+
+; reusing name in local scope
+playerX:        .byte   0
+playerY:        .byte   0
 
 storeMap:
     .byte       TILE_BRICK, TILE_SHOP_LEFT, TILE_SHOP_RIGHT, TILE_BRICK, TILE_BRICK, TILE_BRICK, TILE_BRICK, TILE_BRICK, TILE_BRICK, TILE_BRICK
@@ -120,13 +180,18 @@ inventoryTable:
 ; 10  = Display BCD array value (value0)
 ; 11  = Display BCD byte (value1)
 
-;                               ----------------
-;                               $$$$$ $$$$$ $$$$$
-;                               ##  ##  ##
-;                               111 222 3333  4
-descriptionOut:     .byte      "OUT OF STOCK",STRING_END
-descriptionRe:      .byte      "RESTOCK",STRING_END
-descriptionRockP:   .byte      "INCREASE ROCK",STRING_NEWLINE
-                    .byte      "VALUE BY ",STRING_BCD_BYTE,".",STRING_NEWLINE
-                    .byte      "CURRENT = ",STRING_BCD_NUMBER,STRING_END
+;                                    ----------------
+;                                    $$$$$ $$$$$ $$$$$
+;                                    ##  ##  ##
+;                                    111 222 3333  4
+descriptionOut:         .byte       "OUT OF STOCK",STRING_END
+descriptionRe:          .byte       "RESTOCK",STRING_END
+descriptionRockP:       .byte       "INCREASE ROCK",STRING_NEWLINE
+                        .byte       "VALUE BY ",STRING_BCD_BYTE,".",STRING_NEWLINE
+                        .byte       "CURRENT = ",STRING_BCD_NUMBER,STRING_END
+descriptionDynamite:    .byte       "DYNAMITE! PRESS",STRING_NEWLINE
+                        .byte       "SPACE TO THROW",STRING_END
+descriptionDrink:       .byte       "ENERGY DRINK!",STRING_NEWLINE
+                        .byte       "PRESS TAB TO USE",STRING_END
+
 .endproc
