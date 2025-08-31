@@ -66,6 +66,7 @@ SEED2                   = $ef
 
 PLAYER_INIT_X           = DELTA_H * 4
 PLAYER_INIT_Y           = DELTA_V * 3
+MAX_ENERGY_INIT         = 8
 
 ; BCD numbers
 BCD_MONEY               = 8*1-1
@@ -133,6 +134,8 @@ STRING_END              = 0
     lda         #BCD_DIAMOND_VALUE_INIT
     jsr         bcdSet
 
+    lda         #MAX_ENERGY_INIT
+    sta         maxEnergy
 
 resetLevel:
 
@@ -150,7 +153,9 @@ resetLevel:
     lda         #TILE_PICKMAN_RIGHT1
     sta         playerTile
 
-
+    ; Set energy
+    lda         maxEnergy
+    sta         currentEnergy
 
     jsr         genMap          ; generate map
 
@@ -189,6 +194,8 @@ gameLoop:
     lda         #0
     sta         destroyedTile
     jsr         enterStore
+    lda         #TILE_PICKMAN_RIGHT1    ; exit to the right
+    sta         playerTile
     jmp         resetDisplay
 :
 
@@ -556,6 +563,12 @@ okay:
 ;-----------------------------------------------------------------------------
 
 .proc digTile
+
+    lda         currentEnergy
+    bne         :+
+    rts                             ; Too tired
+:
+
     ldy         tileOffset
     lda         (mapPtr0),y         ; previous value
     sta         destroyedTile
@@ -565,9 +578,19 @@ okay:
     sta         destroyedProp
     and         #TILE_PROPERTY_INVULNERABLE
     beq         :+
-
     rts                             ; Can't destroy
 :
+
+    ; decrease energy (BCD)
+    sed
+    lda         currentEnergy
+    sec
+    sbc         #1
+    sta         currentEnergy
+    cld
+    lda         #2
+    sta         updateInfo
+
 
     lda         destroyedProp
     and         #TILE_PROPERTY_SCORED
@@ -579,8 +602,6 @@ okay:
     ldy         tileIndexToBCD,x
     ldx         #BCD_MONEY
     jsr         bcdAdd
-    lda         #2
-    sta         updateInfo
 
 :
     ; Set map to empty
@@ -810,25 +831,39 @@ drawInfo:
     sta         tileX
     sta         tileY
 
-    lda         #<textString0
+    lda         #<textStringCash
     sta         stringPtr0
-    lda         #>textString0
+    lda         #>textStringCash
     sta         stringPtr1
     jsr         drawString
 
     lda         #BCD_MONEY
     jsr         drawArrayNum
 
-;    lda         #0
-;    sta         tileX
-;    lda         #1
-;    sta         tileY
-;    lda         #<textString1
-;    sta         stringPtr0
-;    lda         #>textString1
-;    sta         stringPtr1
-;    jsr         drawString
+    lda         #0
+    sta         tileX
+    lda         #1
+    sta         tileY
+    lda         #<textStringEnergy
+    sta         stringPtr0
+    lda         #>textStringEnergy
+    sta         stringPtr1
+    jsr         drawString
+    lda         currentEnergy
+    sta         bcdValue
+    jsr         drawBCDByte
 
+    lda         currentEnergy
+    bne         drawDone
+    lda         #0
+    sta         tileX
+    lda         #22
+    sta         tileY
+    lda         #<textStringReturn
+    sta         stringPtr0
+    lda         #>textStringReturn
+    sta         stringPtr1
+    jsr         drawString
 drawDone:
     rts
 
@@ -1181,15 +1216,19 @@ playerX:            .byte   0
 playerY:            .byte   0
 playerTile:         .byte   0
 destroyedTile:      .byte   0
+maxEnergy:          .byte   0
+currentEnergy:      .byte   0
 
 tileOffset:         .byte   0
 
 updateInfo:         .byte   0
 
-;                           |--------||--------|
-textString0:        String "CASH $"
-textString1:        String "DEPTH:0"
 
+textStringCash:     String      "CASH   $"
+textStringEnergy:   String      "ENERGY &"
+                                ;--------------------
+textStringReturn:   StringCont  "&& OUT OF ENERGY  &&"
+                    String      "&& PRESS <RETURN> &&"
 
 ; Lookup table of tile properties
 ; 7:    Invulnerable (negative)

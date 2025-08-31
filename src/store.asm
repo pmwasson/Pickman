@@ -51,12 +51,33 @@ loopX:
 
     lda         #BCD_MONEY
     sta         bcdIndex
+    lda         maxEnergy
+    sta         bcdValue
     lda         #<storeStringWelcome
     sta         stringPtr0
     lda         #>storeStringWelcome
     sta         stringPtr1
     jsr         drawString
 
+    lda         #6
+    sta         tileX
+    lda         #18
+    sta         tileY
+    lda         #TILE_STORE_ROCK
+    sta         bgTile
+    jsr         DHGR_DRAW_14X16
+
+    lda         #6+8
+    sta         tileX
+    lda         #TILE_STORE_GOLD
+    sta         bgTile
+    jsr         DHGR_DRAW_14X16
+
+    lda         #6+16
+    sta         tileX
+    lda         #TILE_STORE_DIAMOND
+    sta         bgTile
+    jsr         DHGR_DRAW_14X16
 
     jsr         waitForKey
     rts
@@ -82,8 +103,9 @@ storeStringWelcome:
     .byte   "STAND UNDER ITEM",STRING_NEWLINE
     .byte   "TO SELECT, UP TO",STRING_NEWLINE
     .byte   "BUY.",STRING_NEWLINE,STRING_NEWLINE
-    .byte   "CASH: ",STRING_BCD_NUMBER,STRING_NEWLINE,STRING_NEWLINE
-    .byte   "COST: ?",STRING_NEWLINE,STRING_NEWLINE
+    .byte   "CASH:   $",STRING_BCD_NUMBER,STRING_NEWLINE
+    .byte   "ENERGY: &",STRING_BCD_BYTE,STRING_NEWLINE,STRING_NEWLINE
+    .byte   "COST:   $?",STRING_NEWLINE
     .byte   "DESCRIPTION:",STRING_END
 
 ; Description, price, quantity left, dependsOn, action, value0, value1, tile,
