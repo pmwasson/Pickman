@@ -63,23 +63,31 @@ loopX:
     sta         stringPtr1
     jsr         drawString
 
-    lda         #6
+    lda         #4
     sta         tileX
     lda         #18
     sta         tileY
+    lda         #TILE_STORE_REROLL
+    sta         bgTile
+    jsr         DHGR_DRAW_14X16
+
+    lda         #10
+    sta         tileX
+    lda         #18
+    sta         tileY
+    lda         #TILE_STORE_SOLD_OUT
+    sta         bgTile
+    jsr         DHGR_DRAW_14X16
+
+    lda         #18
+    sta         tileX
+    lda         #TILE_STORE_DRINK
+    sta         bgTile
+    jsr         DHGR_DRAW_14X16
+
+    lda         #26
+    sta         tileX
     lda         #TILE_STORE_ROCK
-    sta         bgTile
-    jsr         DHGR_DRAW_14X16
-
-    lda         #6+8
-    sta         tileX
-    lda         #TILE_STORE_GOLD
-    sta         bgTile
-    jsr         DHGR_DRAW_14X16
-
-    lda         #6+16
-    sta         tileX
-    lda         #TILE_STORE_DIAMOND
     sta         bgTile
     jsr         DHGR_DRAW_14X16
 
@@ -145,7 +153,7 @@ playerX:        .byte   0
 playerY:        .byte   0
 
 storeMap:
-    .byte       TILE_BRICK, TILE_SHOP_LEFT, TILE_SHOP_RIGHT, TILE_BRICK, TILE_BRICK, TILE_BRICK, TILE_BRICK, TILE_BRICK, TILE_BRICK, TILE_BRICK
+    .byte       TILE_SHOP_LEFT, TILE_SHOP_RIGHT, TILE_BRICK, TILE_BRICK, TILE_BRICK, TILE_BRICK, TILE_BRICK, TILE_BRICK, TILE_BRICK, TILE_BRICK
     .byte       TILE_BRICK, TILE_EMPTY,     TILE_EMPTY,      TILE_EMPTY, TILE_EMPTY, TILE_EMPTY, TILE_EMPTY, TILE_EMPTY, TILE_EMPTY, TILE_BRICK
     .byte       TILE_BRICK, TILE_EMPTY,     TILE_EMPTY,      TILE_EMPTY, TILE_EMPTY, TILE_EMPTY, TILE_EMPTY, TILE_EMPTY, TILE_EMPTY, TILE_BRICK
     .byte       TILE_BRICK, TILE_EMPTY,     TILE_EMPTY,      TILE_EMPTY, TILE_EMPTY, TILE_EMPTY, TILE_EMPTY, TILE_EMPTY, TILE_EMPTY, TILE_BRICK
@@ -161,7 +169,7 @@ storeMap:
 storeStringWelcome:
     ;        ----------------
     .byte   "STAND UNDER ITEM",STRING_NEWLINE
-    .byte   "TO SELECT, UP TO",STRING_NEWLINE
+    .byte   "TO SELECT, ^ TO",STRING_NEWLINE
     .byte   "BUY.",STRING_NEWLINE,STRING_NEWLINE
     .byte   "CASH:   $",STRING_BCD_NUMBER,STRING_NEWLINE
     .byte   "ENERGY: &",STRING_BCD_BYTE,STRING_NEWLINE,STRING_NEWLINE

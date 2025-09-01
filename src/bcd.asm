@@ -17,22 +17,34 @@ temp            :=  A1
 ;-----------------------------------------------------------------------------
 ; BCD set
 ;
-;   x <- A
+;   x <- A * 10^(Y*2)
 ;
-;   Set number X to the BCD value passed in A for the first byte and
+;   Set number X to the BCD value passed in A for the Y-th byte and
 ;   zero out the rest of the number
 ;-----------------------------------------------------------------------------
 .proc bcdSet
 
-    ldy         #BCD_NUM_SIZE-1
-    sta         num_array,x         ; LSB = last byte of array
+    sta         value       ; rember value
+    sty         index       ; and index
+    ldy         #0
     lda         #0
+
 loop:
-    dex
+    cpy         index
+    bne         continue
+    lda         value
+continue:
     sta         num_array,x
-    dey
+    lda         #0
+    dex
+    iny
+    cpy         #8
     bne         loop
+
     rts
+
+value:          .byte   0
+index:          .byte   0
 
 .endproc
 

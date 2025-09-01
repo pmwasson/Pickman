@@ -49,7 +49,7 @@ TILE_STORE_GOLD         = 5
 TILE_GOLD               = 6
 TILE_STORE_DIAMOND      = 7
 TILE_DIAMOND            = 8
-TILE_STORE_DYNAMITE     = 10
+TILE_STORE_DYNAMITE     = 9
 TILE_DYNAMITE           = 10
 TILE_PICKMAN_RIGHT1     = 11
 TILE_PICKMAN_RIGHT2     = 12
@@ -61,6 +61,11 @@ TILE_BRICK              = 17
 TILE_DOOR               = 18
 TILE_PICKMAN_SHOP_RIGHT = 23
 TILE_PICKMAN_SHOP_LEFT  = 24
+TILE_STORE_DRINK        = 25
+TILE_DRINK              = 26
+TILE_STORE_REROLL       = 27
+TILE_STORE_SOLD_OUT     = 28
+
 
 SEED0                   = $ab
 SEED1                   = $cd
@@ -70,12 +75,13 @@ PLAYER_INIT_X           = DELTA_H * 4
 PLAYER_INIT_Y           = DELTA_V * 3
 MAX_ENERGY_INIT         = $10
 
+DRINK_ENERGY_INIT       = $05
+
 ; BCD numbers
 BCD_MONEY               = 8*1-1
 BCD_ROCK_VALUE          = 8*2-1
 BCD_GOLD_VALUE          = 8*3-1
 BCD_DIAMOND_VALUE       = 8*4-1
-BCD_ITEM_VALUE          = 8*5-1
 BCD_INVALID             = 8*16-1
 
 BCD_MONEY_INIT          = $00
@@ -101,6 +107,14 @@ STRING_END              = 0
 ;------------------------------------------------
 .proc main
 
+    ; set seed (must not be 0)
+    lda         #SEED0
+    sta         seed
+    lda         #SEED1
+    sta         seed+1
+    lda         #SEED2
+    sta         seed+2
+
     ;----------------------------
     ; Title
     ;----------------------------
@@ -110,34 +124,34 @@ STRING_END              = 0
     jsr         waitForKey
 
     ;----------------------------
-    ; Init
+    ; Init game
     ;----------------------------
-    ; set seed (must not be 0)
-    lda         #SEED0
-    sta         seed
-    lda         #SEED1
-    sta         seed+1
-    lda         #SEED2
-    sta         seed+2
 
     ldx         #BCD_MONEY
-    lda         #BCD_MONEY_INIT
+    ldy         #2
+    lda         #$10
     jsr         bcdSet
 
     ldx         #BCD_ROCK_VALUE
+    ldy         #0
     lda         #BCD_ROCK_VALUE_INIT
     jsr         bcdSet
 
     ldx         #BCD_GOLD_VALUE
+    ldy         #0
     lda         #BCD_GOLD_VALUE_INIT
     jsr         bcdSet
 
     ldx         #BCD_DIAMOND_VALUE
+    ldy         #0
     lda         #BCD_DIAMOND_VALUE_INIT
     jsr         bcdSet
 
     lda         #MAX_ENERGY_INIT
     sta         maxEnergy
+
+    lda         #DRINK_ENERGY_INIT
+    sta         drinkEnergy
 
 resetLevel:
 
@@ -292,6 +306,17 @@ playerInput:
 ;-----------------------------------------------------------------------------
 
 .proc waitForKey
+
+    ; Randomize seed when waiting for keypress
+;    inc         seed
+;    bne         :+
+;    inc         seed+1
+;    bne         :+
+;    inc         seed+2
+;    bne         :+
+;    inc         seed            ; can't be all zeroes, so add one more
+;:
+
     lda         KBD
     bpl         waitForKey
     sta         KBDSTRB
@@ -604,6 +629,25 @@ okay:
     ldy         tileIndexToBCD,x
     ldx         #BCD_MONEY
     jsr         bcdAdd
+:
+
+    lda         destroyedProp
+    and         #TILE_PROPERTY_GRAB
+    beq         :+
+    lda         destroyedProp
+    and         #TILE_PROPERTY_INDEX
+
+    cmp         #TILE_INDEX_DRINK
+    bne         nextItem
+    sed
+    lda         currentEnergy
+    clc
+    adc         drinkEnergy
+    adc         #1                      ; doesn't cost energy to drink!
+    sta         currentEnergy
+    cld
+nextItem:
+    ; TODO: add dynamite
 
 :
     ; Set map to empty
@@ -1145,16 +1189,17 @@ tileFreq:
     .byte       TILE_GOLD,      40      ; 2%
     .byte       TILE_ROCK,      160     ; 8%
     .byte       TILE_DYNAMITE,  2
+    .byte       TILE_DRINK,     2
 
     ; fill remainder with dirt
-    .byte       TILE_DIRT, 255
-    .byte       TILE_DIRT, 255
-    .byte       TILE_DIRT, 255
-    .byte       TILE_DIRT, 255
-    .byte       TILE_DIRT, 255
-    .byte       TILE_DIRT, 255
-    .byte       TILE_DIRT, 255
-    .byte       TILE_DIRT, 255
+    .byte       TILE_DIRT,      255
+    .byte       TILE_DIRT,      255
+    .byte       TILE_DIRT,      255
+    .byte       TILE_DIRT,      255
+    .byte       TILE_DIRT,      255
+    .byte       TILE_DIRT,      255
+    .byte       TILE_DIRT,      255
+    .byte       TILE_DIRT,      255
 
 .endproc
 
@@ -1221,6 +1266,7 @@ playerTile:         .byte   0
 destroyedTile:      .byte   0
 maxEnergy:          .byte   0
 currentEnergy:      .byte   0
+drinkEnergy:        .byte   0
 
 tileOffset:         .byte   0
 
@@ -1261,15 +1307,16 @@ TILE_INDEX_NONE             =   0
 TILE_INDEX_ROCK             =   1
 TILE_INDEX_GOLD             =   2
 TILE_INDEX_DIAMOND          =   3
-TILE_INDEX_ITEM             =   4
-TILE_INDEX_DOOR             =   5
+TILE_INDEX_DYNAMITE         =   4
+TILE_INDEX_DRINK            =   5
+TILE_INDEX_DOOR             =   6
 
 tileIndexToBCD:
     .byte       BCD_INVALID
     .byte       BCD_ROCK_VALUE
     .byte       BCD_GOLD_VALUE
     .byte       BCD_DIAMOND_VALUE
-    .byte       BCD_ITEM_VALUE
+    .byte       BCD_INVALID
     .byte       BCD_INVALID
     .byte       BCD_INVALID
     .byte       BCD_INVALID
@@ -1283,26 +1330,33 @@ tileIndexToBCD:
     .byte       BCD_INVALID
 
 tileProperties:
-    .byte       TILE_INDEX_NONE                                                                             ; empty
-    .byte       TILE_INDEX_NONE                                                                             ; grass
-    .byte       TILE_INDEX_NONE                                                                             ; dirt
-    .byte       TILE_INDEX_ROCK    + TILE_PROPERTY_SCORED                                                   ; rock
-    .byte       TILE_INDEX_ROCK    + TILE_PROPERTY_SCORED                                                   ; rock
-    .byte       TILE_INDEX_GOLD    + TILE_PROPERTY_SCORED                                                   ; gold
-    .byte       TILE_INDEX_GOLD    + TILE_PROPERTY_SCORED                                                   ; gold
-    .byte       TILE_INDEX_DIAMOND + TILE_PROPERTY_SCORED                                                   ; diamond
-    .byte       TILE_INDEX_DIAMOND + TILE_PROPERTY_SCORED                                                   ; diamond
-    .byte       TILE_INDEX_ITEM    + TILE_PROPERTY_SCORED + TILE_PROPERTY_GRAB + TILE_PROPERTY_EXPLOSIVE    ; dynamite
-    .byte       TILE_INDEX_ITEM    + TILE_PROPERTY_SCORED + TILE_PROPERTY_GRAB + TILE_PROPERTY_EXPLOSIVE    ; dynamite
-    .byte       TILE_PROPERTY_INVALID                                                                       ; player
-    .byte       TILE_PROPERTY_INVALID                                                                       ; player
-    .byte       TILE_PROPERTY_INVALID                                                                       ; player
-    .byte       TILE_PROPERTY_INVALID                                                                       ; player
-    .byte       TILE_PROPERTY_INVALID                                                                       ; store
-    .byte       TILE_PROPERTY_INVALID                                                                       ; store
-    .byte       TILE_INDEX_NONE    + TILE_PROPERTY_INVULNERABLE                                             ; brick
-    .byte       TILE_INDEX_DOOR    + TILE_PROPERTY_INVULNERABLE                                             ; door
-
+    .byte       TILE_INDEX_NONE                                                      ; empty
+    .byte       TILE_INDEX_NONE                                                      ; grass
+    .byte       TILE_INDEX_NONE                                                      ; dirt
+    .byte       TILE_INDEX_ROCK     + TILE_PROPERTY_SCORED                           ; rock
+    .byte       TILE_INDEX_ROCK     + TILE_PROPERTY_SCORED                           ; rock
+    .byte       TILE_INDEX_GOLD     + TILE_PROPERTY_SCORED                           ; gold
+    .byte       TILE_INDEX_GOLD     + TILE_PROPERTY_SCORED                           ; gold
+    .byte       TILE_INDEX_DIAMOND  + TILE_PROPERTY_SCORED                           ; diamond
+    .byte       TILE_INDEX_DIAMOND  + TILE_PROPERTY_SCORED                           ; diamond
+    .byte       TILE_INDEX_DYNAMITE + TILE_PROPERTY_GRAB + TILE_PROPERTY_EXPLOSIVE   ; dynamite
+    .byte       TILE_INDEX_DYNAMITE + TILE_PROPERTY_GRAB + TILE_PROPERTY_EXPLOSIVE   ; dynamite
+    .byte       TILE_PROPERTY_INVALID                                                ; player
+    .byte       TILE_PROPERTY_INVALID                                                ; player
+    .byte       TILE_PROPERTY_INVALID                                                ; player
+    .byte       TILE_PROPERTY_INVALID                                                ; player
+    .byte       TILE_PROPERTY_INVALID                                                ; store
+    .byte       TILE_PROPERTY_INVALID                                                ; store
+    .byte       TILE_INDEX_NONE     + TILE_PROPERTY_INVULNERABLE                     ; brick
+    .byte       TILE_INDEX_DOOR     + TILE_PROPERTY_INVULNERABLE                     ; door
+    .byte       TILE_PROPERTY_INVALID                                                ; Thrown dynamite
+    .byte       TILE_PROPERTY_INVALID                                                ; Thrown dynamite
+    .byte       TILE_PROPERTY_INVALID                                                ; Thrown dynamite
+    .byte       TILE_PROPERTY_INVALID                                                ; Thrown dynamite
+    .byte       TILE_PROPERTY_INVALID                                                ; player (store)
+    .byte       TILE_PROPERTY_INVALID                                                ; player (store)
+    .byte       TILE_INDEX_DRINK    + TILE_PROPERTY_GRAB                             ; drink
+    .byte       TILE_INDEX_DRINK    + TILE_PROPERTY_GRAB                             ; drink
 
 .align 256
 map:
