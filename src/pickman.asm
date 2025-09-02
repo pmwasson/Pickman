@@ -128,8 +128,8 @@ STRING_END              = 0
     ;----------------------------
 
     ldx         #BCD_MONEY
-    ldy         #2
-    lda         #$10
+    ldy         #0
+    lda         #BCD_MONEY_INIT
     jsr         bcdSet
 
     ldx         #BCD_ROCK_VALUE
