@@ -5,10 +5,9 @@
 ;-----------------------------------------------------------------------------
 
 STORE_ACTION_NONE           = 0
-STORE_ACTION_BUY_ITEM       = 1
+STORE_ACTION_REROLL         = 1
 STORE_ACTION_ADD_VALUE      = 2
-STORE_ACTION_DOUBLE_VALUE   = 3
-STORE_ACTION_ADD_FREQ       = 4
+STORE_ACTION_ADD_ENERGY     = 3
 
 STORE_X_LEFT                = 4
 STORE_X_RIGHT               = 40-8
@@ -16,9 +15,18 @@ STORE_X_INIT                = STORE_X_RIGHT
 STORE_Y_INIT                = 24-4
 
 STORE_X_DESCRIPTION         = 4
-STORE_Y_DESCRIPTION         = 11
+STORE_Y_DESCRIPTION         = 12
+
+STORE_X_COST                = 22
+STORE_Y_COST                = 9
+
+itemPtr0 = fgPtr0
+itemPtr1 = fgPtr1
+
 
 .proc enterStore
+
+    jsr         shuffleItems
 
     ; Store doesn't use page flip, so put everything on the low screen
     sta         LOWSCR          ; diaplay page 1
@@ -57,7 +65,7 @@ loopX:
     sta         tileY
 
     lda         #BCD_MONEY
-    sta         bcdIndex
+    sta         bcdIndex0
     lda         maxEnergy
     sta         bcdValue
     lda         #<storeStringWelcome
@@ -105,7 +113,7 @@ loopX:
     jsr         DHGR_DRAW_14X16
 
     lda         #0
-    sta         lastDescription
+    sta         lastItem
 
 storeLoop:
     jsr         waitForKey
@@ -156,15 +164,19 @@ storeLoop:
 :
     jmp         storeLoop
 
+exit:
+    rts
+
 updateDisplay:
     ldx         playerX
-    lda         descriptionIndex,x
-    cmp         lastDescription
+    lda         itemIndex,x
+    cmp         lastItem
     bne         :+
     jmp         storeLoop
 :
-    sta         lastDescription
+    sta         lastItem
 
+    ; Clear previous item
     lda         #STORE_X_DESCRIPTION
     sta         tileX
     lda         #STORE_Y_DESCRIPTION
@@ -174,30 +186,128 @@ updateDisplay:
     lda         #>descriptionBlank
     sta         stringPtr1
     jsr         drawString
+    lda         #STORE_X_COST
+    sta         tileX
+    lda         #STORE_Y_COST
+    sta         tileY
+    lda         #BCD_ZERO
+    jsr         drawArrayNum
 
-    lda         lastDescription
-    asl
+    ; Read item
+    lda         lastItem
+    bne         :+
+    jmp         storeLoop
+:
+
+    asl                                 ; *2
     tax
-    lda         descriptionTable,x
+    lda         itemList,x
+    sta         itemPtr0
+    lda         itemList+1,x
+    sta         itemPtr1
+
+    ; Display description
+    ldy         #0                      ; description
+    lda         (itemPtr0),y
     sta         stringPtr0
-    lda         descriptionTable+1,x
+    ldy         #1
+    lda         (itemPtr0),y
     sta         stringPtr1
+
+    ; TODO read values
+    ldy         #6                      ; value
+    lda         (itemPtr0),y
+    sta         bcdIndex0
+
+    ldy         #8                      ; arg
+    lda         (itemPtr0),y
+    sta         bcdValue                ; Store arg as BCD byte ...
+    sta         costBase
+    ldy         #9
+    lda         (itemPtr0),y
+    tay
+    ldx         #BCD_ARG
+    stx         bcdIndex1
+    lda         costBase
+    jsr         bcdSet                  ; ... and BCD number
+
     lda         #STORE_X_DESCRIPTION
     sta         tileX
     lda         #STORE_Y_DESCRIPTION
     sta         tileY
     jsr         drawString
+
+    ; Display cost
+    ;-------------
+    ldy         #2                      ; cost
+    lda         (itemPtr0),y
+    sta         costBase
+    ldy         #3
+    lda         (itemPtr0),y
+    tay
+    ldx         #BCD_ITEM_COST
+    lda         costBase
+    jsr         bcdSet
+
+    lda         #STORE_X_COST
+    sta         tileX
+    lda         #STORE_Y_COST
+    sta         tileY
+    lda         #BCD_ITEM_COST
+    jsr         drawArrayNum
+
+    ldy         #6
+    lda         (itemPtr0),y
+    sta         bcdIndex0               ; value
+
     jmp         storeLoop
 
-exit:
-    rts
 
 index:              .byte   0
-lastDescription:    .byte   0
+lastItem:           .byte   0
+costBase:           .byte   0
 
 ; reusing name in local scope
 playerX:            .byte   0
 playerY:            .byte   0
+
+.endproc
+
+;------------------------------
+; Shuffle Items randomly
+;   Shuffle 256 bytes of data
+;------------------------------
+
+.proc shuffleItems
+
+    lda         #0
+    sta         index
+
+loop:
+    jsr         galois24o
+    tay
+    ldx         index
+
+    ; swap x and y
+    lda         itemActive,x
+    sta         temp
+    lda         itemActive,y
+    sta         itemActive,x
+    lda         temp
+    sta         itemActive,y
+    dec         index
+    bne         loop
+    rts
+
+index:          .byte   0
+temp:           .byte   0
+
+.endproc
+
+
+;-----------------------------------------------------
+; Data
+;-----------------------------------------------------
 
 storeMap:
     .byte       TILE_SHOP_LEFT, TILE_SHOP_RIGHT, TILE_BRICK, TILE_BRICK, TILE_BRICK, TILE_BRICK, TILE_BRICK, TILE_BRICK, TILE_BRICK, TILE_BRICK
@@ -218,12 +328,12 @@ storeStringWelcome:
     .byte   "STAND UNDER ITEM",STRING_NEWLINE
     .byte   "TO SELECT, ^ TO",STRING_NEWLINE
     .byte   "BUY.",STRING_NEWLINE,STRING_NEWLINE
-    .byte   "CASH:   $",STRING_BCD_NUMBER,STRING_NEWLINE
+    .byte   "CASH:   $",STRING_BCD_NUMBER0,STRING_NEWLINE
     .byte   "ENERGY: &",STRING_BCD_BYTE,STRING_NEWLINE,STRING_NEWLINE
     .byte   "COST:   $?",STRING_NEWLINE
     .byte   "DESCRIPTION:",STRING_END
 
-descriptionIndex:               ; 0..39 (only evens matter)
+itemIndex:                      ; 0..39 (only evens matter)
     .byte   0,0,0,0             ; wall
     .byte   1,1                 ; reroll
     .byte   0,0                 ; space
@@ -235,29 +345,27 @@ descriptionIndex:               ; 0..39 (only evens matter)
     .byte   0,0,0,0,0,0         ; space
     .byte   0,0,0,0             ; door
 
-; Description, price, priceExp, quantity left, dependsOn, action, value0, value1, tile,
-inventoryTable:
-    .byte   <descriptionOut,   >descriptionOut,   0,  0, 0, 0,   STORE_ACTION_NONE,      BCD_ROCK_VALUE, 5,   TILE_EMPTY,      "???",      0,0,0,0
-    .byte   <descriptionRe,    >descriptionRe,    0,  0, 0, 0,   STORE_ACTION_NONE,      BCD_ROCK_VALUE, 5,   TILE_EMPTY,      "???",      0,0,0,0
-    .byte   <descriptionRockP, >descriptionRockP, 10, 0, 3, 0,   STORE_ACTION_ADD_VALUE, BCD_ROCK_VALUE, 5,   TILE_STORE_ROCK, "$",11,     0,0,0,0
-    .byte   <descriptionRockP, >descriptionRockP, 20, 0, 3, 1,   STORE_ACTION_ADD_VALUE, BCD_ROCK_VALUE, 15,  TILE_STORE_ROCK, "$",11,     0,0,0,0
+itemList:
+    .word   inventoryTable+16*0
+    .word   inventoryTable+16*1
+    .word   inventoryTable+16*2
+    .word   inventoryTable+16*3
+    .word   inventoryTable+16*4
 
+.define COMBINE_CHAR(ta,tb) (ta & $3f)+(tb & $3f)*256
+STORE_ICON_NONE             = COMBINE_CHAR(' ',' ')
+STORE_ICON_ADD_VALUE        = COMBINE_CHAR('+','$')
+STORE_ICON_ADD_ENERGY       = COMBINE_CHAR('+','$')
 
-descriptionTable:
-    .word       descriptionBlank
-    .word       descriptionRe
-    .word       descriptionRockP
-    .word       descriptionDynamite
-    .word       descriptionDrink
-; Special charaters
-; 0   = end of string
-; 10  = Display BCD array value (value0)
-; 11  = Display BCD byte (value1)
+;           Description,       cost,   action,                  value,            arg,   tile,                icon,                   reserved
+inventoryTable:     ; 16 bytes per entry
+    .word   descriptionOut,    $0000,  STORE_ACTION_NONE,       BCD_INVALID,      $0000, TILE_STORE_SOLD_OUT, STORE_ICON_NONE,        0
+    .word   descriptionRe,     $0000,  STORE_ACTION_REROLL,     BCD_REROLL_COST,  $0000, TILE_STORE_REROLL,   STORE_ICON_NONE,        0
+    .word   descriptionRockP,  $0020,  STORE_ACTION_ADD_VALUE,  BCD_ROCK_VALUE,   $0005, TILE_STORE_ROCK,     STORE_ICON_ADD_VALUE,   0
+    .word   descriptionRockP,  $0040,  STORE_ACTION_ADD_VALUE,  BCD_ROCK_VALUE,   $0010, TILE_STORE_ROCK,     STORE_ICON_ADD_VALUE,   0
+    .word   descriptionEnergy, $0101,  STORE_ACTION_ADD_ENERGY, BCD_INVALID,      $0007, TILE_STORE_DRINK,    STORE_ICON_ADD_ENERGY,  0
 
 ;                                    ----------------
-;                                    $$$$$ $$$$$ $$$$$
-;                                    ##  ##  ##
-;                                    111 222 3333  4
 descriptionBlank:       .byte       "                ",STRING_NEWLINE
                         .byte       "                ",STRING_NEWLINE
                         .byte       "                ",STRING_END
@@ -265,11 +373,22 @@ descriptionOut:         .byte       "OUT OF STOCK",STRING_END
 descriptionRe:          .byte       "RESTOCK STORE",STRING_NEWLINE
                         .byte       "WITH NEW ITEMS",STRING_END
 descriptionRockP:       .byte       "INCREASE ROCK",STRING_NEWLINE
-                        .byte       "VALUE BY ",STRING_BCD_BYTE,".",STRING_NEWLINE
-                        .byte       "CURRENT = ",STRING_BCD_NUMBER,STRING_END
+                        .byte       "VALUE BY ",STRING_BCD_NUMBER1,STRING_NEWLINE
+                        .byte       "CURRENT = ",STRING_BCD_NUMBER0,STRING_END
 descriptionDynamite:    .byte       "DYNAMITE! PRESS",STRING_NEWLINE
                         .byte       "SPACE TO THROW",STRING_END
-descriptionDrink:       .byte       "ENERGY DRINK!",STRING_NEWLINE
-                        .byte       "PRESS TAB TO USE",STRING_END
+descriptionEnergy:      .byte       "INCREASE",STRING_NEWLINE
+                        .byte       "STARTING ENERGY",STRING_NEWLINE
+                        .byte       "BY ",STRING_BCD_BYTE,STRING_END
 
-.endproc
+
+.align 256
+
+itemDepends:                ; Item only apears if dependent item sold (unavailable).  0=no dependencies
+    .res        255
+
+itemAvailable:              ; Set to 0 if item is sold making it unavailable (except reroll)
+    .res        255
+
+itemActive:                 ; Shuffled list of active items
+    .res        256

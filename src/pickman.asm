@@ -82,15 +82,23 @@ BCD_MONEY               = 8*1-1
 BCD_ROCK_VALUE          = 8*2-1
 BCD_GOLD_VALUE          = 8*3-1
 BCD_DIAMOND_VALUE       = 8*4-1
+BCD_REROLL_COST         = 8*5-1
+BCD_ITEM_COST           = 8*6-1
+BCD_ARG                 = 8*7-1
+BCD_TEMP                = 8*14-1
+BCD_ZERO                = 8*15-1
 BCD_INVALID             = 8*16-1
 
 BCD_MONEY_INIT          = $00
 BCD_ROCK_VALUE_INIT     = $05
 BCD_GOLD_VALUE_INIT     = $20
 BCD_DIAMOND_VALUE_INIT  = $50
+BCD_REROLL_COST_INIT    = $00
 
-STRING_BCD_BYTE         = 10
-STRING_BCD_NUMBER       = 11
+STRING_BCD_BYTE         = 9
+STRING_BCD_NUMBER0      = 10
+STRING_BCD_NUMBER1      = 11
+STRING_BCD_NUMBER2      = 12
 STRING_NEWLINE          = 13
 STRING_END              = 0
 
@@ -127,6 +135,11 @@ STRING_END              = 0
     ; Init game
     ;----------------------------
 
+    ldx         #BCD_ZERO
+    ldy         #0
+    lda         #0
+    jsr         bcdSet
+
     ldx         #BCD_MONEY
     ldy         #0
     lda         #BCD_MONEY_INIT
@@ -145,6 +158,11 @@ STRING_END              = 0
     ldx         #BCD_DIAMOND_VALUE
     ldy         #0
     lda         #BCD_DIAMOND_VALUE_INIT
+    jsr         bcdSet
+
+    ldx         #BCD_REROLL_COST
+    ldy         #0
+    lda         #BCD_REROLL_COST_INIT
     jsr         bcdSet
 
     lda         #MAX_ENERGY_INIT
@@ -770,9 +788,21 @@ loop:
     jmp         continue
 :
     ; BCD number
-    cmp         #STRING_BCD_NUMBER
+    cmp         #STRING_BCD_NUMBER0
     bne         :+
-    lda         bcdIndex
+    lda         bcdIndex0
+    jsr         drawArrayNum
+    jmp         continue
+:
+    cmp         #STRING_BCD_NUMBER1
+    bne         :+
+    lda         bcdIndex1
+    jsr         drawArrayNum
+    jmp         continue
+:
+    cmp         #STRING_BCD_NUMBER2
+    bne         :+
+    lda         bcdIndex2
     jsr         drawArrayNum
     jmp         continue
 :
@@ -876,7 +906,7 @@ drawInfo:
 
     ; display cash
     lda         #BCD_MONEY
-    sta         bcdIndex
+    sta         bcdIndex0
     lda         #0
     sta         tileX
     sta         tileY
@@ -1273,7 +1303,7 @@ tileOffset:         .byte   0
 updateInfo:         .byte   0
 
 
-textStringCash:     .byte       "CASH   $",STRING_BCD_NUMBER,"   ",0
+textStringCash:     .byte       "CASH   $",STRING_BCD_NUMBER0,"   ",0
 textStringEnergy:   .byte       "ENERGY &",STRING_BCD_BYTE," ",0
                                 ;--------------------
 textStringReturn:   StringCont  "&& OUT OF ENERGY  &&"

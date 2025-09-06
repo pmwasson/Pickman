@@ -116,15 +116,15 @@ loop:
 ;          10,000,000,000 ..         999,999,999,999          : ___B  (6 bytes = 12 digits)
 ;       1,000,000,000,000 ..   9,999,999,999,999,999          : ____T (8 bytes = 16 digits)
 ;
-;              9,999,999,999,999,999 suffix | 1 byte? | skip last? | max output size
-; MSB = 7   ->                    00        | yes     |            | 2
-; MSB = 6   ->                 1 100        |         |            | 4
-; MSB = 5   ->               221     K      |         | yes        | 4
-; MSB = 4   ->            33         M      | yes     |            | 3
-; MSB = 3   ->         4 433         M      |         |            | 5
-; MSB = 2   ->       554             B      |         | yes        | 4
-; MSB = 1   ->    66                 T      | yes     |            | 3
-; MSB = 0   -> 7 766                 T      |         |            | 5
+;              9,999,999,999,999,999 suffix | 1 byte? | skip last? | padding to 5
+; MSB = 7   ->                    00        | yes     |            | skip_first+3
+; MSB = 6   ->                 1 100        |         |            | skip_first+1
+; MSB = 5   ->               221     K      |         | yes        | skip_first+1
+; MSB = 4   ->            33         M      | yes     |            | skip_first+2
+; MSB = 3   ->         4 433         M      |         |            | skip_first
+; MSB = 2   ->       554             B      |         | yes        | skip_first+1
+; MSB = 1   ->    66                 T      | yes     |            | skip_first+2
+; MSB = 0   -> 7 766                 T      |         |            | skip_first
 ;
 ; output size = max or max - 1 if leading zero
 ;
@@ -157,6 +157,8 @@ msbLoop:
     sbc         startIndex
     sta         suffix
 
+    lda         #1
+    sta         skipFirst       ; guess skip first digit, clear below if wrong
     ; first digit
     lda         num_array,x
     lsr
@@ -169,6 +171,8 @@ msbLoop:
     jsr         DHGR_DRAW_7X8
     inc         tileX
     inc         tileX
+    lda         #0
+    sta         skipFirst
 doneDigit:
 
     ; second digit
@@ -219,19 +223,36 @@ drawSuffix:
     jsr         DHGR_DRAW_7X8
     inc         tileX
     inc         tileX
-
 :
+    ldy         suffix
+    lda         padding,y
+    clc
+    adc         skipFirst
+    sta         index
+    beq         done
+
+    lda         #$20            ; space
+    sta         bgTile
+paddingLoop:
+    jsr         DHGR_DRAW_7X8
+    inc         tileX
+    inc         tileX
+    dec         index
+    bne         paddingLoop
+
+done:
     rts
 
 startIndex:     .byte       0
 index:          .byte       0
 suffix:         .byte       0
+skipFirst:      .byte       0
 
 flagOneByte:    .byte       0,1,0,0,1,0,0,1
 flagSkipLast:   .byte       0,0,1,0,0,1,0,0
 ;                             T   T   B   M   M   K
 suffixTile:     .byte       $14,$14,$02,$0D,$0D,$0B,$00,$00
-
+padding:        .byte       0,2,1,0,2,1,1,3
 .endproc
 
 
@@ -268,7 +289,9 @@ nextDigit:
 ;-----------------------------------------------------------------------------
 
 bcdValue:           .byte   0
-bcdIndex:           .byte   0
+bcdIndex0:          .byte   0
+bcdIndex1:          .byte   0
+bcdIndex2:          .byte   0
 
 .align 256
 num_array:
