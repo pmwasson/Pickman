@@ -93,7 +93,7 @@ BCD_MONEY_INIT          = $00
 BCD_ROCK_VALUE_INIT     = $05
 BCD_GOLD_VALUE_INIT     = $20
 BCD_DIAMOND_VALUE_INIT  = $50
-BCD_REROLL_COST_INIT    = $00
+BCD_REROLL_COST_INIT    = $03
 
 STRING_BCD_BYTE         = 9
 STRING_BCD_NUMBER0      = 10
@@ -141,8 +141,10 @@ STRING_END              = 0
     jsr         bcdSet
 
     ldx         #BCD_MONEY
-    ldy         #0
-    lda         #BCD_MONEY_INIT
+;    ldy         #0
+;   lda         #BCD_MONEY_INIT
+    ldy         #5
+    lda         #1
     jsr         bcdSet
 
     ldx         #BCD_ROCK_VALUE

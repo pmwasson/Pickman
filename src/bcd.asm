@@ -82,6 +82,34 @@ loop:
 .endproc
 
 ;-----------------------------------------------------------------------------
+; BCD sub
+;
+;   x <- x-y
+;
+;-----------------------------------------------------------------------------
+.proc bcdSub
+
+    sed         ; set BCD mode
+    sec
+
+    lda         #BCD_NUM_SIZE
+    sta         temp
+
+loop:
+    lda         num_array,x
+    sbc         num_array,y
+    sta         num_array,x
+    dex
+    dey
+    dec         temp
+    bne         loop
+
+    cld                         ; clear BCD mode for normal operation
+    rts
+
+.endproc
+
+;-----------------------------------------------------------------------------
 ; BCD copy
 ;
 ;   x <- y
@@ -93,8 +121,8 @@ loop:
     sta         temp
 
 loop:
-    lda         num_array,x
-    sta         num_array,y
+    lda         num_array,y
+    sta         num_array,x
     dex
     dey
     dec         temp

@@ -59,6 +59,23 @@ loopX:
     cmp         #24
     bne         loopY
 
+    ; init player
+    lda         #STORE_X_INIT
+    sta         playerX
+    sta         tileX
+    lda         #STORE_Y_INIT
+    sta         playerY
+    sta         tileY
+    lda         #TILE_PICKMAN_SHOP_LEFT
+    sta         bgTile
+    jsr         DHGR_DRAW_14X16
+
+
+
+refresh:
+    lda         #$FF
+    sta         lastItem
+
     lda         #4
     sta         tileX
     lda         #2
@@ -102,18 +119,7 @@ loopX:
     sta         bgTile
     jsr         DHGR_DRAW_14X16
 
-    lda         #STORE_X_INIT
-    sta         playerX
-    sta         tileX
-    lda         #STORE_Y_INIT
-    sta         playerY
-    sta         tileY
-    lda         #TILE_PICKMAN_SHOP_LEFT
-    sta         bgTile
-    jsr         DHGR_DRAW_14X16
-
-    lda         #0
-    sta         lastItem
+    jmp         updateDisplay
 
 storeLoop:
     jsr         waitForKey
@@ -161,11 +167,65 @@ storeLoop:
     sta         bgTile
     jsr         DHGR_DRAW_14X16
     jmp         updateDisplay
-:
-    jmp         storeLoop
 
 exit:
     rts
+:
+
+    cmp         #KEY_UP
+    bne         :+
+    lda         lastItem
+    bne         :+
+    jmp         storeLoop
+:
+    ; Buy item
+    ; Check if can afford
+    ldx         #BCD_TEMP
+    ldy         #BCD_MONEY
+    jsr         bcdCopy
+
+    ldx         #BCD_TEMP
+    ldy         #BCD_ITEM_COST
+    jsr         bcdSub
+    bcs         :+
+
+    jmp         storeLoop           ; can't afford
+:
+
+    ; subtract cost
+    ldx         #BCD_MONEY
+    ldy         #BCD_ITEM_COST
+    jsr         bcdSub
+
+    ldy         #INVENTORY_ACTION
+    lda         (itemPtr0),y
+
+    cmp         #STORE_ACTION_ADD_VALUE
+    bne         :+
+    ldx         bcdIndex0           ; value
+    ldy         bcdIndex1           ; arg
+    jsr         bcdAdd
+    jmp         refresh
+:
+
+    cmp         #STORE_ACTION_ADD_ENERGY
+    bne         :+
+
+    sed
+    clc
+    lda         maxEnergy
+    adc         bcdValue
+    sta         maxEnergy
+    cld
+    bcc         energyOkay
+    lda         #$99
+    sta         maxEnergy
+energyOkay:
+    jmp         refresh
+:
+
+    jmp         refresh
+
 
 updateDisplay:
     ldx         playerX
@@ -195,7 +255,7 @@ updateDisplay:
 
     ; Read item
     lda         lastItem
-    bne         :+
+    bne         :+                      ; none
     jmp         storeLoop
 :
 
@@ -207,23 +267,22 @@ updateDisplay:
     sta         itemPtr1
 
     ; Display description
-    ldy         #0                      ; description
+    ldy         #INVENTORY_DESCRIPTION
     lda         (itemPtr0),y
     sta         stringPtr0
-    ldy         #1
+    iny
     lda         (itemPtr0),y
     sta         stringPtr1
 
-    ; TODO read values
-    ldy         #6                      ; value
+    ldy         #INVENTORY_VALUE
     lda         (itemPtr0),y
     sta         bcdIndex0
 
-    ldy         #8                      ; arg
+    ldy         #INVENTORY_ARG
     lda         (itemPtr0),y
     sta         bcdValue                ; Store arg as BCD byte ...
     sta         costBase
-    ldy         #9
+    iny
     lda         (itemPtr0),y
     tay
     ldx         #BCD_ARG
@@ -239,27 +298,35 @@ updateDisplay:
 
     ; Display cost
     ;-------------
-    ldy         #2                      ; cost
+    lda         #STORE_X_COST
+    sta         tileX
+    lda         #STORE_Y_COST
+    sta         tileY
+
+    ldy         #INVENTORY_COST
+    lda         (itemPtr0),y
+    bne         :+
+
+    ; if cost is 0, use value
+    ldx         #BCD_ITEM_COST
+    ldy         bcdIndex0
+    jsr         bcdCopy
+    jmp         displayCost
+
+:
+    ldy         #INVENTORY_COST
     lda         (itemPtr0),y
     sta         costBase
-    ldy         #3
+    iny
     lda         (itemPtr0),y
     tay
     ldx         #BCD_ITEM_COST
     lda         costBase
     jsr         bcdSet
 
-    lda         #STORE_X_COST
-    sta         tileX
-    lda         #STORE_Y_COST
-    sta         tileY
+displayCost:
     lda         #BCD_ITEM_COST
     jsr         drawArrayNum
-
-    ldy         #6
-    lda         (itemPtr0),y
-    sta         bcdIndex0               ; value
-
     jmp         storeLoop
 
 
@@ -330,7 +397,7 @@ storeStringWelcome:
     .byte   "BUY.",STRING_NEWLINE,STRING_NEWLINE
     .byte   "CASH:   $",STRING_BCD_NUMBER0,STRING_NEWLINE
     .byte   "ENERGY: &",STRING_BCD_BYTE,STRING_NEWLINE,STRING_NEWLINE
-    .byte   "COST:   $?",STRING_NEWLINE
+    .byte   "COST:   $",STRING_NEWLINE
     .byte   "DESCRIPTION:",STRING_END
 
 itemIndex:                      ; 0..39 (only evens matter)
@@ -356,6 +423,14 @@ itemList:
 STORE_ICON_NONE             = COMBINE_CHAR(' ',' ')
 STORE_ICON_ADD_VALUE        = COMBINE_CHAR('+','$')
 STORE_ICON_ADD_ENERGY       = COMBINE_CHAR('+','$')
+
+INVENTORY_DESCRIPTION       = 0
+INVENTORY_COST              = 2
+INVENTORY_ACTION            = 4
+INVENTORY_VALUE             = 6
+INVENTORY_ARG               = 8
+INVENTORY_TILE              = 10
+INVENTORY_ICON              = 12
 
 ;           Description,       cost,   action,                  value,            arg,   tile,                icon,                   reserved
 inventoryTable:     ; 16 bytes per entry
