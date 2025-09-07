@@ -169,6 +169,13 @@ exit:
     ldy         #INVENTORY_ACTION
     lda         (itemPtr0),y
 
+    ; After buying, add a new item
+    and         #%11111110              ; check if not NONE or REROLL
+    beq         :+
+    inc         availableItems
+:
+
+    lda         (itemPtr0),y
     cmp         #STORE_ACTION_NONE
     bne         :+
     jmp         updateDisplay
@@ -473,24 +480,19 @@ temp:           .byte   0
 
     ldx         #0
 availableLoop:
-    ldy         itemDepends,x       ; this item only available if dependency sold (or none)
-    beq         available           ; no dependencies
-    lda         itemAvailable,y     ; 0 = sold
-    beq         available
-
-    ; dependency not sold, unavailable
-    lda         #0
-    sta         itemActive,x
-    jmp         next
-
-available:
     lda         itemAvailable,x
     sta         itemActive,x
-next:
     inx
+    cpx         availableItems
     bne         availableLoop
 
-    ; available items marked with there locations, shuffle list
+    lda         #0
+unavailableLoop:
+    sta         itemActive,x
+    inx
+    bne         unavailableLoop
+
+    ; randomize order of items
     jsr         shuffleItems
 
     lda         #0
@@ -643,6 +645,7 @@ removeLoop:
 ; Data
 ;-----------------------------------------------------
 
+availableItems:     .byte   5
 lastItem:           .byte   0
 
 ; current item
@@ -763,25 +766,49 @@ descriptionEnergy:      .byte       "INCREASE",STRING_NEWLINE
                         .byte       "STARTING ENERGY",STRING_NEWLINE
                         .byte       "BY ",STRING_BCD_BYTE,STRING_END
 
+; TODO:
+;  rock       value +/*  frequency +/*
+;  gold       value +/*  frequency +/*  energy +
+;  diamond    value +/*  frequency +/*  energy +
+;  dynamite              frequency +    blast-size +
+;  multiplier            frequency +
+;
+;  reset reroll cost
+;  dig up
+;  blast-armor
+;
+;  key
+;  sword
 
 .align 256
 
-itemDepends:                ; Item only apears if dependent item sold (unavailable).  0=no dependencies
-    .res        256
-
 itemAvailable:              ; Inventory index.  Set to 0 if item is sold making it unavailable (except reroll)
+
     .byte       2           ; rock+5
+    .byte       5           ; max energy +
+    .byte       6           ; dynamite
+
     .byte       2           ; rock+5
+    .byte       5           ; max energy +
+    .byte       6           ; dynamite
+
     .byte       3           ; rock+10
+    .byte       5           ; max energy +
+    .byte       6           ; dynamite
+
+    .byte       3           ; rock+10
+    .byte       5           ; max energy +
+    .byte       6           ; dynamite
+
     .byte       4           ; rock+25
-    .byte       5           ; max energy + 4
-    .byte       5           ; max energy + 4
+    .byte       5           ; max energy +
     .byte       6           ; dynamite
+
+    .byte       4           ; rock+25
+    .byte       5           ; max energy +
     .byte       6           ; dynamite
-    .byte       6           ; dynamite
-    .byte       6           ; dynamite
-    .byte       6           ; dynamite
-    .res        256-4
+
+.align 256                  ; fill rest with zeros
 
 itemActive:                 ; Shuffled list of active items
     .res        256

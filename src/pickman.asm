@@ -129,6 +129,9 @@ DYNAMITE_COUNT_X        = DYNAMITE_X + 4
     lda         #SEED2
     sta         seed+2
 
+    ; FIXME: add way to reset store's inventory and available count
+
+
     ;----------------------------
     ; Title
     ;----------------------------
@@ -1174,11 +1177,12 @@ index:          .byte   0
 
 freqTileLoop:
     ldy         index
+    inc         index
+    inc         index
     lda         tileFreq,y          ; tile
     ldx         tileFreq+1,y        ; count
     stx         count
-    inc         index
-    inc         index
+    beq         freqTileLoop        ; skip if count is zero
 
     ldy         #0
 freqLoop:
@@ -1266,23 +1270,6 @@ overwriteLoop:
 
 index:      .byte       0
 count:      .byte       0
-
-tileFreq:
-    .byte       TILE_DIAMOND,   10      ; 0.5%
-    .byte       TILE_GOLD,      40      ; 2%
-    .byte       TILE_ROCK,      160     ; 8%
-    .byte       TILE_DYNAMITE,  99
-    .byte       TILE_DRINK,     2
-
-    ; fill remainder with dirt
-    .byte       TILE_DIRT,      255
-    .byte       TILE_DIRT,      255
-    .byte       TILE_DIRT,      255
-    .byte       TILE_DIRT,      255
-    .byte       TILE_DIRT,      255
-    .byte       TILE_DIRT,      255
-    .byte       TILE_DIRT,      255
-    .byte       TILE_DIRT,      255
 
 .endproc
 
@@ -1440,6 +1427,25 @@ tileProperties:
     .byte       TILE_PROPERTY_INVALID                                                ; player (store)
     .byte       TILE_INDEX_DRINK    + TILE_PROPERTY_GRAB                             ; drink
     .byte       TILE_INDEX_DRINK    + TILE_PROPERTY_GRAB                             ; drink
+
+tileFreq:
+    .byte       TILE_DIAMOND,   10      ; 0.5%
+    .byte       TILE_GOLD,      40      ; 2%
+    .byte       TILE_ROCK,      80      ; 8%
+    .byte       TILE_ROCK,      80      ; 8%
+    .byte       TILE_DYNAMITE,  2
+    .byte       TILE_DRINK,     2
+    .byte       TILE_BRICK,     0       ; Placehold for multiplier
+
+    ; fill remainder with dirt
+    .byte       TILE_DIRT,      255
+    .byte       TILE_DIRT,      255
+    .byte       TILE_DIRT,      255
+    .byte       TILE_DIRT,      255
+    .byte       TILE_DIRT,      255
+    .byte       TILE_DIRT,      255
+    .byte       TILE_DIRT,      255
+    .byte       TILE_DIRT,      255
 
 .align 256
 map:
