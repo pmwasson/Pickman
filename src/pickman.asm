@@ -102,6 +102,12 @@ STRING_BCD_NUMBER2      = 12
 STRING_NEWLINE          = 13
 STRING_END              = 0
 
+HELD_DYNAMITE_INIT      = 0
+DYNAMITE_X              = 40 - 8
+DYNAMITE_Y              = 0
+DYNAMITE_COUNT_Y        = 1
+DYNAMITE_COUNT_X        = DYNAMITE_X + 4
+
 ;------------------------------------------------
 
 .segment "CODE"
@@ -173,6 +179,9 @@ STRING_END              = 0
     lda         #DRINK_ENERGY_INIT
     sta         drinkEnergy
 
+    lda         #HELD_DYNAMITE_INIT
+    sta         heldDynamite
+
 resetLevel:
 
     ; Reset map
@@ -195,7 +204,7 @@ resetLevel:
 
     jsr         genMap          ; generate map
 
-    jsr         restockItems
+    jsr         restockItems    ; restock store
 
 resetDisplay:
     jsr         clearMapCache   ; must be called after generating a map or clearing screen
@@ -664,7 +673,7 @@ okay:
     and         #TILE_PROPERTY_INDEX
 
     cmp         #TILE_INDEX_DRINK
-    bne         nextItem
+    bne         nextItemDynamite
     sed
     lda         currentEnergy
     clc
@@ -675,10 +684,27 @@ okay:
     sta         currentEnergy       ; if overflow, max at 99
 goodDrink:
     cld
-nextItem:
+    jmp         updateMap
+nextItemDynamite:
+    cmp         #TILE_INDEX_DYNAMITE
+    bne         nextItem
     ; TODO: add dynamite
+    sed
+    lda         heldDynamite
+    clc
+    adc         #1
+    sta         heldDynamite
+    bcc         goodDynamite
+    lda         #$99
+    sta         heldDynamite
+goodDynamite:
+    cld
+    jmp         updateMap
+nextItem:
+    brk         ; Unknown item
 
 :
+updateMap:
     ; Set map to empty
     ldy         tileOffset
     lda         #TILE_EMPTY
@@ -939,6 +965,22 @@ drawInfo:
     lda         #>textStringEnergy
     sta         stringPtr1
     jsr         drawString
+
+    ; display dynamite
+    lda         #DYNAMITE_X
+    sta         tileX
+    lda         #DYNAMITE_Y
+    sta         tileY
+    lda         #TILE_STORE_DYNAMITE
+    sta         bgTile
+    jsr         DHGR_DRAW_14X16
+    lda         #DYNAMITE_COUNT_X
+    sta         tileX
+    lda         #DYNAMITE_COUNT_Y
+    sta         tileY
+    lda         heldDynamite
+    sta         bcdValue
+    jsr         drawBCDByte
 
     ; display warning
     lda         currentEnergy
@@ -1229,7 +1271,7 @@ tileFreq:
     .byte       TILE_DIAMOND,   10      ; 0.5%
     .byte       TILE_GOLD,      40      ; 2%
     .byte       TILE_ROCK,      160     ; 8%
-    .byte       TILE_DYNAMITE,  2
+    .byte       TILE_DYNAMITE,  99
     .byte       TILE_DRINK,     2
 
     ; fill remainder with dirt
@@ -1305,10 +1347,10 @@ playerX:            .byte   0
 playerY:            .byte   0
 playerTile:         .byte   0
 destroyedTile:      .byte   0
-maxEnergy:          .byte   0
-currentEnergy:      .byte   0
-drinkEnergy:        .byte   0
-
+maxEnergy:          .byte   0           ; BCD
+currentEnergy:      .byte   0           ; BCD
+drinkEnergy:        .byte   0           ; BCD
+heldDynamite:       .byte   0           ; BCD
 tileOffset:         .byte   0
 
 updateInfo:         .byte   0

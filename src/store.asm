@@ -22,11 +22,13 @@ STORE_X_ENERGY              = 22
 STORE_Y_ENERGY              = 7
 
 STORE_X_DESCRIPTION         = 4
-STORE_Y_DESCRIPTION         = 12
+STORE_Y_DESCRIPTION         = 13
 
 STORE_X_COST                = 22
-STORE_Y_COST                = 8
+STORE_Y_COST                = 9
 
+ICON_Y                      = 17
+ITEM_Y                      = 18
 ITEM_X_1                    = 4
 ITEM_X_2                    = 10
 ITEM_X_3                    = 18
@@ -197,11 +199,35 @@ energyOkay:
     jmp         removeItemDisplay
 :
 
+    cmp         #STORE_ACTION_ADD_DYNAMITE
+    bne         :+
+
+    sed
+    clc
+    lda         heldDynamite
+    adc         itemArg
+    sta         heldDynamite
+    cld
+    bcc         dynamiteOkay
+    lda         #$99
+    sta         heldDynamite
+dynamiteOkay:
+    jmp         removeItemDisplay
+:
+
     cmp         #STORE_ACTION_REROLL
     bne         :+
 
     jsr         restockItems
-    jmp         refresh
+
+    ; load items for display (ending with reroll)
+    lda         #4
+    sta         lastItem
+restockLoop:
+    jsr         loadItem
+    dec         lastItem
+    bpl         restockLoop
+    jmp         updateDisplay
 
 :
     brk
@@ -239,6 +265,8 @@ updateDisplay:
     lda         #BCD_ZERO
     jsr         drawArrayNum
 
+    jsr         drawItems
+
     ; Read item
     ldx         lastItem
     bne         :+                      ; none
@@ -268,8 +296,6 @@ updateDisplay:
     sta         tileY
     lda         #BCD_ITEM_COST
     jsr         drawArrayNum
-
-    jsr         drawItems
 
     jmp         storeLoop
 
@@ -331,18 +357,64 @@ index:              .byte   0
 .endproc
 
 .proc drawItems
+    lda         #ICON_Y
+    sta         tileY
+
     lda         #ITEM_X_1
     sta         tileX
-    lda         #18
+    lda         itemIcon0+1
+    sta         bgTile
+    jsr         DHGR_DRAW_7X8
+    inc         tileX
+    inc         tileX
+    lda         itemIcon1+1
+    sta         bgTile
+    jsr         DHGR_DRAW_7X8
+
+    lda         #ITEM_X_2
+    sta         tileX
+    lda         itemIcon0+2
+    sta         bgTile
+    jsr         DHGR_DRAW_7X8
+    inc         tileX
+    inc         tileX
+    lda         itemIcon1+2
+    sta         bgTile
+    jsr         DHGR_DRAW_7X8
+
+    lda         #ITEM_X_3
+    sta         tileX
+    lda         itemIcon0+3
+    sta         bgTile
+    jsr         DHGR_DRAW_7X8
+    inc         tileX
+    inc         tileX
+    lda         itemIcon1+3
+    sta         bgTile
+    jsr         DHGR_DRAW_7X8
+
+    lda         #ITEM_X_4
+    sta         tileX
+    lda         itemIcon0+4
+    sta         bgTile
+    jsr         DHGR_DRAW_7X8
+    inc         tileX
+    inc         tileX
+    lda         itemIcon1+4
+    sta         bgTile
+    jsr         DHGR_DRAW_7X8
+
+    lda         #ITEM_Y
     sta         tileY
+
+    lda         #ITEM_X_1
+    sta         tileX
     lda         itemTile+1
     sta         bgTile
     jsr         DHGR_DRAW_14X16
 
     lda         #ITEM_X_2
     sta         tileX
-    lda         #18
-    sta         tileY
     lda         itemTile+2
     sta         bgTile
     jsr         DHGR_DRAW_14X16
@@ -631,7 +703,7 @@ storeStringWelcome:
     .byte   "TO SELECT, ^ TO",STRING_NEWLINE
     .byte   "BUY.",STRING_NEWLINE,STRING_NEWLINE
     .byte   "CASH:   $",STRING_NEWLINE
-    .byte   "ENERGY: &",STRING_NEWLINE
+    .byte   "ENERGY: &",STRING_NEWLINE,STRING_NEWLINE
     .byte   "COST:   $0",STRING_NEWLINE
     .byte   "DESCRIPTION:",STRING_END
 
@@ -647,11 +719,11 @@ itemIndex:                      ; 0..39 (only evens matter)
     .byte   0,0,0,0,0,0         ; space
     .byte   0,0,0,0             ; door
 
-.define COMBINE_CHAR(ta,tb) (ta & $3f)+(tb & $3f)*256
-STORE_ICON_NONE             = COMBINE_CHAR(' ',' ')
-STORE_ICON_ADD_VALUE        = COMBINE_CHAR('+','$')
-STORE_ICON_ADD_ENERGY       = COMBINE_CHAR('+','$')
-STORE_ICON_INCREASE         = COMBINE_CHAR('+',' ')
+STORE_ICON_NONE             = $2020         ; <space> <space>
+STORE_ICON_UNKNOWN          = $3F3F         ; ??
+STORE_ICON_ADD_VALUE        = $242B         ; +$
+STORE_ICON_ADD_ENERGY       = $262B         ; +&
+STORE_ICON_INCREASE         = $2B2B         ; ++
 
 INVENTORY_DESCRIPTION       = 0
 INVENTORY_COST              = 2
@@ -663,14 +735,17 @@ INVENTORY_ICON              = 12
 
 INVENTORY_ITEM_SOLD_OUT     = inventoryTable
 
+.align 16
+
 ;           Description,            cost,   action,                     value,            arg,   tile,                icon,                   reserved
 inventoryTable:     ; 16 bytes per entry
     .word   descriptionOut,         $0000,  STORE_ACTION_NONE,          BCD_ZERO,         $0000, TILE_STORE_SOLD_OUT, STORE_ICON_NONE,        0
-    .word   descriptionRe,          $0000,  STORE_ACTION_REROLL,        BCD_REROLL_COST,  $0000, TILE_STORE_REROLL,   STORE_ICON_NONE,        0
+    .word   descriptionRe,          $0000,  STORE_ACTION_REROLL,        BCD_REROLL_COST,  $0000, TILE_STORE_REROLL,   STORE_ICON_UNKNOWN,     0
     .word   descriptionRockP,       $0020,  STORE_ACTION_ADD_VALUE,     BCD_ROCK_VALUE,   $0005, TILE_STORE_ROCK,     STORE_ICON_ADD_VALUE,   0
-    .word   descriptionRockP,       $0040,  STORE_ACTION_ADD_VALUE,     BCD_ROCK_VALUE,   $0010, TILE_STORE_ROCK,     STORE_ICON_ADD_VALUE,   0
+    .word   descriptionRockP,       $0050,  STORE_ACTION_ADD_VALUE,     BCD_ROCK_VALUE,   $0010, TILE_STORE_ROCK,     STORE_ICON_ADD_VALUE,   0
+    .word   descriptionRockP,       $0101,  STORE_ACTION_ADD_VALUE,     BCD_ROCK_VALUE,   $0025, TILE_STORE_ROCK,     STORE_ICON_ADD_VALUE,   0
     .word   descriptionEnergy,      $0101,  STORE_ACTION_ADD_ENERGY,    BCD_INVALID,      $0004, TILE_STORE_DRINK,    STORE_ICON_ADD_ENERGY,  0
-    .word   descriptionDynamite,    $0080,  STORE_ACTION_ADD_DYNAMITE,  BCD_INVALID,      $0001, TILE_STORE_DYNAMITE, STORE_ICON_INCREASE,    0
+    .word   descriptionDynamite,    $0102,  STORE_ACTION_ADD_DYNAMITE,  BCD_INVALID,      $0001, TILE_STORE_DYNAMITE, STORE_ICON_INCREASE,    0
 
 ;                                    ----------------
 descriptionBlank:       .byte       "                ",STRING_NEWLINE
@@ -696,10 +771,16 @@ itemDepends:                ; Item only apears if dependent item sold (unavailab
 
 itemAvailable:              ; Inventory index.  Set to 0 if item is sold making it unavailable (except reroll)
     .byte       2           ; rock+5
+    .byte       2           ; rock+5
     .byte       3           ; rock+10
-    .byte       4           ; max energy + 4
-    .byte       4           ; max energy + 4
-    .byte       5           ; dynamite
+    .byte       4           ; rock+25
+    .byte       5           ; max energy + 4
+    .byte       5           ; max energy + 4
+    .byte       6           ; dynamite
+    .byte       6           ; dynamite
+    .byte       6           ; dynamite
+    .byte       6           ; dynamite
+    .byte       6           ; dynamite
     .res        256-4
 
 itemActive:                 ; Shuffled list of active items
