@@ -84,7 +84,7 @@ BCD_GOLD_VALUE          = 8*3-1
 BCD_DIAMOND_VALUE       = 8*4-1
 BCD_REROLL_COST         = 8*5-1
 BCD_ITEM_COST           = 8*6-1
-BCD_ARG                 = 8*7-1
+BCD_ITEM_ARG            = 8*7-1
 BCD_TEMP                = 8*14-1
 BCD_ZERO                = 8*15-1
 BCD_INVALID             = 8*16-1
@@ -143,8 +143,8 @@ STRING_END              = 0
     ldx         #BCD_MONEY
 ;    ldy         #0
 ;   lda         #BCD_MONEY_INIT
-    ldy         #5
-    lda         #1
+    ldy         #1
+    lda         #$10
     jsr         bcdSet
 
     ldx         #BCD_ROCK_VALUE
@@ -194,6 +194,8 @@ resetLevel:
     sta         currentEnergy
 
     jsr         genMap          ; generate map
+
+    jsr         restockItems
 
 resetDisplay:
     jsr         clearMapCache   ; must be called after generating a map or clearing screen
@@ -288,7 +290,11 @@ playerInput:
 
 ; Note: can't dig up!
 
+    ; Return to top
+    ;-----------------------
     cmp         #KEY_RETURN
+    bne         :+
+    ldx         currentEnergy
     bne         :+
     jmp         resetLevel
 :
@@ -663,8 +669,11 @@ okay:
     lda         currentEnergy
     clc
     adc         drinkEnergy
-    adc         #1                      ; doesn't cost energy to drink!
     sta         currentEnergy
+    bcc         goodDrink
+    lda         #$99
+    sta         currentEnergy       ; if overflow, max at 99
+goodDrink:
     cld
 nextItem:
     ; TODO: add dynamite
