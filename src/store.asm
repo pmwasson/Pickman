@@ -112,27 +112,34 @@ eraseLoop:
 
     cmp         #KEY_LEFT
     bne         :+
-
+    lda         #TILE_PICKMAN_SHOP_LEFT
+    cmp         playerTile
+    beq         alreadyLeft
+    sta         playerTile
+    jmp         updateDisplay
+alreadyLeft:
     lda         playerX
     cmp         #STORE_X_LEFT
     beq         noLeft
     dec         playerX
     dec         playerX
-    lda         #TILE_PICKMAN_SHOP_LEFT
-    sta         playerTile
 noLeft:
     jmp         updateDisplay
 :
 
     cmp         #KEY_RIGHT
     bne         :+
+    lda         #TILE_PICKMAN_SHOP_RIGHT
+    cmp         playerTile
+    beq         alreadyRight
+    sta         playerTile
+    jmp         updateDisplay
+alreadyRight:
     lda         playerX
     cmp         #STORE_X_RIGHT
     beq         exit
     inc         playerX
     inc         playerX
-    lda         #TILE_PICKMAN_SHOP_RIGHT
-    sta         playerTile
     jmp         updateDisplay
 
 exit:

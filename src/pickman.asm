@@ -103,10 +103,10 @@ STRING_NEWLINE          = 13
 STRING_END              = 0
 
 HELD_DYNAMITE_INIT      = 0
-DYNAMITE_X              = 40 - 8
-DYNAMITE_Y              = 0
+DYNAMITE_DISPLAY_X      = 40 - 8
+DYNAMITE_DISPLAY_Y      = 0
 DYNAMITE_COUNT_Y        = 1
-DYNAMITE_COUNT_X        = DYNAMITE_X + 4
+DYNAMITE_COUNT_X        = DYNAMITE_DISPLAY_X + 4
 
 ;------------------------------------------------
 
@@ -130,7 +130,6 @@ DYNAMITE_COUNT_X        = DYNAMITE_X + 4
     sta         seed+2
 
     ; FIXME: add way to reset store's inventory and available count
-
 
     ;----------------------------
     ; Title
@@ -318,6 +317,7 @@ playerInput:
     cmp         #KEY_ESC
     bne         :+
 
+    bit         TXTSET
     jsr    inline_print
     StringCR "Press CTRL-Y for ProDOS program launcher"
 
@@ -329,7 +329,6 @@ playerInput:
     lda         #>quit
     sta         $3fa
 
-    bit         TXTSET
     jmp         MONZ        ; enter monitor
 :
     ;
@@ -374,10 +373,16 @@ playerInput:
 ;-----------------------------------------------------------------------------
 
 .proc moveRight
-    ; set direction
+    ; check direction
     lda         #TILE_PICKMAN_RIGHT1
-    sta         playerTile
+    cmp         playerTile
+    beq         tileGood
 
+    ; just set direction
+    sta         playerTile
+    rts
+
+tileGood:
     ; check if tile empty
     jsr         checkRight
     cmp         #TILE_EMPTY
@@ -423,6 +428,16 @@ setX:
 .endproc
 
 .proc moveLeft
+    ; check direction
+    lda         #TILE_PICKMAN_LEFT1
+    cmp         playerTile
+    beq         tileGood
+
+    ; just set direction
+    sta         playerTile
+    rts
+
+tileGood:
     ; set direction
     lda         #TILE_PICKMAN_LEFT1
     sta         playerTile
@@ -970,9 +985,9 @@ drawInfo:
     jsr         drawString
 
     ; display dynamite
-    lda         #DYNAMITE_X
+    lda         #DYNAMITE_DISPLAY_X
     sta         tileX
-    lda         #DYNAMITE_Y
+    lda         #DYNAMITE_DISPLAY_Y
     sta         tileY
     lda         #TILE_STORE_DYNAMITE
     sta         bgTile
@@ -1316,6 +1331,7 @@ quit_params:
 .include "galois24o.asm"
 .include "inline_print.asm"
 .include "bcd.asm"
+.include "sound.asm"
 
 ;-----------------------------------------------------------------------------
 ; Global Variables
