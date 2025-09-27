@@ -59,13 +59,18 @@ TILE_SHOP_LEFT          = 15
 TILE_SHOP_RIGHT         = 16
 TILE_BRICK              = 17
 TILE_DOOR               = 18
-TILE_PICKMAN_SHOP_RIGHT = 23
-TILE_PICKMAN_SHOP_LEFT  = 24
-TILE_STORE_DRINK        = 25
-TILE_DRINK              = 26
-TILE_STORE_REROLL       = 27
-TILE_STORE_SOLD_OUT     = 28
+TILE_BARREL             = 19
+TILE_THROWN_DYNAMITE    = 20        ; 20..23
+TILE_PICKMAN_SHOP_RIGHT = 24
+TILE_PICKMAN_SHOP_LEFT  = 25
+TILE_STORE_DRINK        = 26
+TILE_DRINK              = 27
+TILE_STORE_REROLL       = 28
+TILE_STORE_SOLD_OUT     = 29
+TILE_INVALID            = $FF
 
+MODE_MOVE               = 0
+MODE_THROW              = 1
 
 SEED0                   = $ab
 SEED1                   = $cd
@@ -281,6 +286,9 @@ playerInput:
     bpl         gameLoop
     sta         KBDSTRB
 
+    ldx         mode
+    bne         noMovement      ; can only move if mode == move(0)
+
     ; Movement
     ;----------------------
     cmp         #KEY_RIGHT
@@ -298,8 +306,15 @@ playerInput:
     jsr         moveDown
     jmp         gameLoop
 :
-
 ; Note: can't dig up!
+
+    cmp         #KEY_SPACE
+    bne         :+
+    jsr         throwDynamite
+    jmp         gameLoop
+:
+
+noMovement:
 
     ; Return to top
     ;-----------------------
@@ -376,26 +391,26 @@ playerInput:
     ; check direction
     lda         #TILE_PICKMAN_RIGHT1
     cmp         playerTile
-    beq         tileGood
+    beq         directionGood
 
     ; just set direction
     sta         playerTile
     rts
 
-tileGood:
+directionGood:
+    ; check if on edge (assume not on edge if able to scroll)
+    lda         playerX
+    cmp         #WINDOW_RIGHT-DELTA_H
+    bne         :+
+    jsr         soundUnable
+    rts                         ; Can't dig (or move)
+:
+
     ; check if tile empty
     jsr         checkRight
     cmp         #TILE_EMPTY
     beq         move
 
-    ; check if on edge (assume not on edge if able to scroll)
-    lda         playerX
-    clc
-    adc         #DELTA_H
-    cmp         #WINDOW_RIGHT
-    bcc         :+
-    rts                         ; Can't dig (or move)
-:
     jmp         digTile
 
 move:
@@ -409,19 +424,14 @@ move:
     ; check if scroll
     lda         mapOffsetX0
     cmp         #MAP_RIGHT
-    beq         checkEdge
+    beq         noScroll
     inc         mapOffsetX0
     rts                         ; okay - scroll
 
-checkEdge:
-    ; check if on edge
+noScroll:
     lda         playerX
     clc
     adc         #DELTA_H
-    cmp         #WINDOW_RIGHT
-    bcc         setX
-    rts                         ; failed!
-
 setX:
     sta         playerX
     rts                         ; okay - move on screen
@@ -431,30 +441,26 @@ setX:
     ; check direction
     lda         #TILE_PICKMAN_LEFT1
     cmp         playerTile
-    beq         tileGood
+    beq         directionGood
 
     ; just set direction
     sta         playerTile
     rts
 
-tileGood:
-    ; set direction
-    lda         #TILE_PICKMAN_LEFT1
-    sta         playerTile
+directionGood:
+    ; check if on edge (assume not on edge if able to scroll)
+    lda         playerX
+    cmp         #WINDOW_LEFT
+    bne         :+
+    jsr         soundUnable
+    rts                         ; Can't dig (or move)
+:
 
     ; check if tile empty
     jsr         checkLeft
     cmp         #TILE_EMPTY
     beq         move
 
-    ; check if on edge (assume not on edge if able to scroll)
-    lda         playerX
-    sec
-    sbc         #DELTA_H
-    cmp         #WINDOW_LEFT
-    bcs         :+
-    rts                         ; Can't dig (or move)
-:
     jmp         digTile
 
 move:
@@ -467,18 +473,14 @@ move:
 
     ; check if scroll
     lda         mapOffsetX0
-    beq         checkEdge
+    beq         noScroll
     dec         mapOffsetX0
     rts                         ; okay - scroll
 
-checkEdge:
-    ; check if on edge
+noScroll:
     lda         playerX
     sec
     sbc         #DELTA_H
-    cmp         #WINDOW_LEFT
-    bcs         setX
-    rts                         ; failed
 setX:
     sta         playerX         ; okay - move on screen
     rts
@@ -515,6 +517,7 @@ checkEdge:
     sbc         #DELTA_V
     cmp         #WINDOW_TOP
     bcs         setY
+    jsr         soundUnable
     rts                         ; failed
 setY:
     sta         playerY
@@ -562,10 +565,34 @@ checkEdge:
     adc         #DELTA_V
     cmp         #WINDOW_BOTTOM
     bcc         setY
+    jsr         soundUnable
     rts                         ; failed
 setY:
     sta         playerY
     rts                         ; okay - move on screen
+.endproc
+
+;-----------------------------------------------------------------------------
+; Theow Dynamite
+;-----------------------------------------------------------------------------
+
+.proc throwDynamite
+
+    lda         #MODE_THROW
+    sta         mode
+    rts
+
+
+    ; Check which direction player is facing
+    lda         playerTile
+    cmp         #TILE_PICKMAN_RIGHT1
+    beq         rightFace
+leftFace:
+    lda         playerX
+    cmp         #WINDOW_LEFT
+rightFace:
+    rts
+
 .endproc
 
 
@@ -646,6 +673,7 @@ okay:
 
     lda         currentEnergy
     bne         :+
+    jsr         soundUnable
     rts                             ; Too tired
 :
 
@@ -658,6 +686,7 @@ okay:
     sta         destroyedProp
     and         #TILE_PROPERTY_INVULNERABLE
     beq         :+
+    ;jsr         soundUnable
     rts                             ; Can't destroy
 :
 
@@ -671,10 +700,12 @@ okay:
     lda         #2
     sta         updateInfo
 
+    jsr         soundDig
 
     lda         destroyedProp
     and         #TILE_PROPERTY_SCORED
     beq         :+
+    jsr         soundGood
     ; Add to score
     lda         destroyedProp
     and         #TILE_PROPERTY_INDEX
@@ -949,7 +980,28 @@ drawPlayer:
     lda         playerY
     sta         tileY
     jsr         DHGR_DRAW_14X16
-    jsr         setMapCache
+    jsr         invalidMapCache
+
+    ;---------------
+    ; dynamite
+    ;---------------
+drawDynamite:
+    lda         mode
+    cmp         #MODE_THROW
+    bne         :+
+    lda         timer0
+    lsr
+    lsr
+    and         #$03
+    ora         #TILE_THROWN_DYNAMITE
+    sta         bgTile
+    lda         dynamiteX
+    sta         tileX
+    lda         dynamiteY
+    sta         tileY
+    jsr         DHGR_DRAW_14X16
+    jsr         invalidMapCache
+:
 
     ;---------------
     ; info
@@ -1023,10 +1075,10 @@ cacheIndex:     .byte   0
 
 ;-----------------------------------------------------------------------------
 ; Set map cache
-;   Update map cache with the last thing drawn
+;   Invalidate map cache location so it is redrawn
 ;-----------------------------------------------------------------------------
 
-.proc setMapCache
+.proc invalidMapCache
 
     ; set cache
     lda         tileY
@@ -1044,7 +1096,7 @@ cacheIndex:     .byte   0
     adc         index           ; + row
     adc         cacheOffset     ; + page
     tax
-    lda         bgTile
+    lda         #TILE_INVALID
     sta         mapCache,x
 
     rts
@@ -1296,7 +1348,7 @@ count:      .byte       0
 
 .proc clearMapCache
     ldx         #0
-    lda         #0
+    lda         #TILE_INVALID
 loop:
     sta         mapCache,x
     inx
@@ -1346,6 +1398,7 @@ mapOffsetX0:        .byte   0
 mapOffsetY0:        .byte   0
 mapOffsetY1:        .byte   0
 
+mode:               .byte   MODE_MOVE
 playerX:            .byte   0
 playerY:            .byte   0
 playerTile:         .byte   0
@@ -1355,6 +1408,9 @@ currentEnergy:      .byte   0           ; BCD
 drinkEnergy:        .byte   0           ; BCD
 heldDynamite:       .byte   0           ; BCD
 tileOffset:         .byte   0
+
+dynamiteX:          .byte   12
+dynamiteY:          .byte   20
 
 updateInfo:         .byte   0
 

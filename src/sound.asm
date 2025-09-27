@@ -132,3 +132,50 @@ loop:
 length:         .byte       0
 
 .endproc
+
+.proc soundUnable
+    ldy         #$10
+loop:
+    sta         SPEAKER
+    ldx         #$F0
+pause:
+    dex
+    bne         pause
+    dey
+    bne         loop
+    rts
+.endproc
+
+.proc soundDig
+    ldy         #$14
+loop:
+    sta         SPEAKER
+    ldx         #$5A
+pause:
+    dex
+    bne         pause
+    dey
+    bne         loop
+    rts
+.endproc
+
+.proc soundGood
+    lda         #$40
+    sta         delay
+
+    ldy         #$40
+loop:
+    sta         SPEAKER
+    ldx         delay
+pause:
+    dex
+    bne         pause
+    dec         delay
+    dey
+    bne         loop
+
+    rts
+
+.endproc
+
+delay:          .byte   0
