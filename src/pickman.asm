@@ -113,6 +113,10 @@ DYNAMITE_DISPLAY_Y      = 0
 DYNAMITE_COUNT_Y        = 1
 DYNAMITE_COUNT_X        = DYNAMITE_DISPLAY_X + 4
 
+THROW_RIGHT             = 0
+THROW_LEFT              = 1
+
+
 ;------------------------------------------------
 
 .segment "CODE"
@@ -271,10 +275,27 @@ gameLoop:
     bne         :+
     jsr         checkBelow
     cmp         #TILE_EMPTY
-    bne         playerInput
+    bne         checkThrow
     jsr         moveDown
     jmp         gameLoop
 :
+
+
+checkThrow:
+    ;-----------------------
+    ; check if throwing
+    ;-----------------------
+    lda         mode
+    cmp         #MODE_THROW
+    bne         playerInput
+
+    ; change mode and remove dynamite
+    lda         #MODE_MOVE
+    sta         mode
+    lda         dynamiteX
+    sta         tileX
+    lda         dynamiteY
+    sta         tileY
 
 playerInput:
     ;-------------------
@@ -577,11 +598,12 @@ setY:
 ;-----------------------------------------------------------------------------
 
 .proc throwDynamite
-
-    lda         #MODE_THROW
-    sta         mode
+    ; check inventory
+    lda         heldDynamite
+    bne         :+
+    jsr         soundUnable
     rts
-
+:
 
     ; Check which direction player is facing
     lda         playerTile
@@ -590,8 +612,45 @@ setY:
 leftFace:
     lda         playerX
     cmp         #WINDOW_LEFT
-rightFace:
+    beq         noThrow
+    jsr         checkLeft           ; can't throw with no space
+    cmp         #TILE_EMPTY
+    bne         noThrow
+    lda         #THROW_LEFT
+
+yesThrow:
+    sta         dynamiteDirection
+    lda         #MODE_THROW
+    sta         mode
+    ; checkLeft/Right sets tileX/Y
+    lda         tileX
+    sta         dynamiteX
+    lda         tileY
+    sta         dynamiteY
+    ; decrement held (BCD)
+    sed
+    lda         heldDynamite
+    sec
+    sbc         #1
+    sta         heldDynamite
+    cld
+    lda         #2
+    sta         updateInfo
     rts
+
+noThrow:
+    jsr         soundUnable
+    rts
+
+rightFace:
+    lda         playerX
+    cmp         #WINDOW_RIGHT-DELTA_H
+    beq         noThrow
+    jsr         checkRight          ; can't throw with no space
+    cmp         #TILE_EMPTY
+    bne         noThrow
+    lda         #THROW_RIGHT
+    jmp         yesThrow
 
 .endproc
 
@@ -737,7 +796,6 @@ goodDrink:
 nextItemDynamite:
     cmp         #TILE_INDEX_DYNAMITE
     bne         nextItem
-    ; TODO: add dynamite
     sed
     lda         heldDynamite
     clc
@@ -1411,6 +1469,7 @@ tileOffset:         .byte   0
 
 dynamiteX:          .byte   12
 dynamiteY:          .byte   20
+dynamiteDirection:  .byte   0
 
 updateInfo:         .byte   0
 
